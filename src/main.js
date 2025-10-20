@@ -142,7 +142,7 @@ const main = () => {
                     dialog.showMessageBoxSync(null, {
                         title: 'Error Connecting to Remote Address',
                         message:
-              'There was an problem connecting to the remote address in gSender.',
+              'There was an problem connecting to the remote address in Shapestar.',
                         detail:
               'Remote mode has been disabled. Please verify the configured IP address before restarting the application.',
                     });
@@ -181,7 +181,7 @@ const main = () => {
             };
             const options = {
                 ...bounds,
-                title: `gSender ${pkg.version}`,
+                title: `Shapestar ${pkg.version}`,
                 kiosk,
             };
             const window = await windowManager.openWindow(url, options, splashScreen);
@@ -347,7 +347,7 @@ const main = () => {
                     minWidth: 550 / factor,
                     minHeight: 460 / factor,
                     useContentSize: true,
-                    title: 'gSender',
+                    title: 'Shapestar',
                     parent: window,
                 };
                 // Hash router URL should look like '{url}/#/widget/:id'

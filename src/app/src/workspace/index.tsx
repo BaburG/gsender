@@ -54,7 +54,7 @@ const Workspace = () => {
             }, 100);
         }
 
-        document.title = `gSender ${pkg.version}`;
+        document.title = `Shapestar ${pkg.version}`;
     }, [location]);
 
     useDarkMode();

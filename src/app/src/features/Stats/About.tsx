@@ -179,7 +179,7 @@ const About = () => {
             </p>
 
             <div>
-                <h2 className="text-2xl text-blue-500 mb-2">gSender Team</h2>
+                <h2 className="text-2xl text-blue-500 mb-2">Shapestar Team</h2>
                 <div className="text-md md:text-lg dark:text-white">
                     {team.map((member, index) => (
                         <span key={member.name}>
