@@ -1,7 +1,60 @@
-Copyright (C) 2025 Sienci Labs Inc.
+README – ShapeStar Controller (GPLv3 License Notice)
 
-gSender is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, under version 3 of the License.
+Software Information
+---------------------
+ShapeStar Controller is a CNC control software developed by ShapeStar Technologies, based on open-source gSender and GRBLHAL projects. 
+It is specifically designed and optimized for the ShapeStar SS Pro CNC milling machine to provide a reliable, user-friendly, and license-compliant control interface.
 
-You should have received a copy of the GNU General Public License along with gSender.  If not, see <https://www.gnu.org/licenses/>.
+Copyright (C) 2025 ShapeStar Technologies
 
-This software is provided "as is", without any warranty, express or implied, of any nature, and you use the software at your own risk. In no event shall any author or copyright holder be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+
+License Information
+-------------------
+This software is distributed under the GNU General Public License Version 3 (GPLv3).
+
+GPLv3 allows users to freely use, modify, and redistribute the software, 
+provided that all derivative works and modifications are distributed under the same license terms.
+
+Full license text: https://www.gnu.org/licenses/gpl-3.0.html
+
+
+Usage Conditions (Summary)
+--------------------------
+- The software can be used for commercial purposes.
+- Any modifications or additions to the source code must be clearly documented as “Modified Version.”
+- When distributing this software (source or binary), this README and LICENSE (GPLv3) file must always be included.
+- This software is provided without any warranty. The manufacturer or distributor cannot be held responsible for damages caused by malfunction or misuse.
+
+
+Included Components
+-------------------
+The software is built upon the following open-source components:
+
+Component               License   Source
+-------------------------------------------------------------
+gSender                 GPLv3     https://github.com/Sienci-Labs/gsender
+GRBLHAL Firmware        GPLv3     https://github.com/grblHAL
+ShapeStar Controller UI GPLv3     © 2025 ShapeStar Technologies
+
+
+Summary of Modifications
+------------------------
+- Customized UI to match the ShapeStar brand identity.
+- Redesigned calibration and setup wizards.
+- Added “Probe-less Zeroing” and “Angular Correction” functions.
+- Integrated Wi-Fi connection management and joystick control support.
+
+
+Feedback and Contributions
+---------------------------
+ShapeStar Controller is developed under an open contribution model.
+
+Feedback, bug reports, and improvement suggestions are welcome at:
+support@shapestar.com
+https://www.shapestar.com/licenses/controller
+
+
+Disclaimer
+----------
+This software is provided “AS IS”, without any express or implied warranty. 
+ShapeStar Technologies disclaims all warranties regarding performance, reliability, or fitness for a particular purpose.
