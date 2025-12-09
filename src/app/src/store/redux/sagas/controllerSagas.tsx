@@ -59,6 +59,7 @@ import {
     JOB_STATUS,
     GRBL,
     LIGHTWEIGHT_OPTIONS,
+    GRBL_ACTIVE_STATE_CHECK,
 } from 'app/constants';
 import {
     closeConnection,
@@ -669,10 +670,22 @@ export function* initialize(): Generator<any, void, any> {
     controller.addListener(
         'feeder:pause',
         (payload: { data: string; comment: string }) => {
+            const msg = 'Press Resume to continue.';
+            const content =
+                payload.comment.length > 0 ? (
+                    <div>
+                        <p>{msg}</p>
+                        <p>
+                            Comment: <b>{payload.comment}</b>
+                        </p>
+                    </div>
+                ) : (
+                    msg
+                );
             Confirm({
                 title: `${payload.data} pause detected`,
                 confirmLabel: 'Resume',
-                content: 'Press Resume to continue.',
+                content,
 
                 cancelLabel: 'Stop',
                 onConfirm: () => {
@@ -927,7 +940,11 @@ export function* initialize(): Generator<any, void, any> {
         const revertWorkspace = store.get('workspace.revertWorkspace');
         // if revert workspace is off, set the current workspace back to what it was when the job started
         if (!revertWorkspace) {
-            controller.command('gcode', '[global.state.workspace]');
+            if (GRBL_ACTIVE_STATE_CHECK) {
+                controller.command('gcode', '[global.state.testWCS]');
+            } else {
+                controller.command('gcode', '[global.state.workspace]');
+            }
         }
     });
 
