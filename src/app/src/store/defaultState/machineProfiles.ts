@@ -26,6 +26,8 @@ import * as longMillGrblEEPROM from 'app/config/eeprom/grbl/longmill';
 import * as longMillGrblHALEEPROM from 'app/config/eeprom/grblHAL/longmill';
 import * as millOneGrblEEPROM from 'app/config/eeprom/grbl/millone';
 import * as altmillSettings from 'app/config/eeprom/altmill';
+import * as shapestarGrblEEPROM from 'app/config/eeprom/grbl/shapestar';
+import * as shapestarGrblHALEEPROM from 'app/config/eeprom/grblHAL/shapestar';
 
 export default [
     {
@@ -632,5 +634,29 @@ export default [
         grblHALeepromSettings: altmillSettings.SPINDLE_KIT,
         orderedSettings: altmillSettings.SPINDLE_ORDERED,
         isHal: true,
+    },
+    {
+        id: 60,
+        company: 'Sienci Labs',
+        name: 'Shapestar',
+        type: '',
+        version: '',
+        mm: {
+            width: 792,
+            depth: 845,
+            height: 114.3,
+        },
+        in: {
+            width: 31.18,
+            depth: 33.27,
+            height: 4.5,
+        },
+        endstops: false,
+        spindle: false,
+        coolant: false,
+        laser: false,
+        laserOnOutline: false,
+        eepromSettings: shapestarGrblEEPROM.SHAPESTAR_DEFAULT,
+        grblHALeepromSettings: shapestarGrblHALEEPROM.SHAPESTAR_DEFAULT,
     },
 ];
