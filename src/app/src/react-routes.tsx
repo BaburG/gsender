@@ -12,7 +12,7 @@ import { StatParent } from './features/Stats/StatParent';
 import Surfacing from './features/Surfacing';
 import ToolCard from './components/ToolCard';
 import { GiFlatPlatform } from 'react-icons/gi';
-import { FaGamepad, FaKeyboard, FaMicrochip } from 'react-icons/fa';
+import { FaGamepad, FaKeyboard, FaMicrochip, FaNetworkWired } from 'react-icons/fa';
 import { TbRulerMeasure } from 'react-icons/tb';
 import { MdSquareFoot } from 'react-icons/md';
 import { Alarms } from './features/Stats/Alarms';
@@ -41,6 +41,7 @@ import Console from 'app/features/Console';
 import Profile from './features/Gamepad/Profile';
 import RotarySurfacing from './features/Rotary/RotarySurfacing';
 import ConfirmationDialog from './components/ConfirmationDialog/ConfirmationDialog';
+import Network from './features/Network';
 
 export const ReactRoutes = () => {
     return (
@@ -112,6 +113,13 @@ export const ReactRoutes = () => {
                                         description="Easy hand-held CNC control using pre-made or custom profiles"
                                         icon={FaGamepad}
                                         link="/tools/gamepad"
+                                    />
+
+                                    <ToolCard
+                                        title="Network"
+                                        description="Configure WiFi and Ethernet settings for your Raspberry Pi"
+                                        icon={FaNetworkWired}
+                                        link="/tools/network"
                                     />
 
                                     <ToolCard
@@ -201,6 +209,19 @@ export const ReactRoutes = () => {
                     <Route
                         path="gamepad/:gamepadProfileId"
                         element={<Profile />}
+                    />
+                    <Route
+                        path="network"
+                        element={
+                            <Page
+                                title="Network Configuration"
+                                description="Manage WiFi and Ethernet settings for your Raspberry Pi"
+                                withGoBackButton
+                                withFixedArea
+                            >
+                                <Network />
+                            </Page>
+                        }
                     />
                     <Route
                         path="firmware"
