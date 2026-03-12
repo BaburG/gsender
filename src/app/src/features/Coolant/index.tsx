@@ -91,8 +91,8 @@ export function Coolant({ mistActive, floodActive }: CoolantProps) {
                     text="Off"
                     icon={<FaBan />}
                     onClick={stopCoolant}
-                    size="lg"
-                    className="w-full h-16"
+                    className="h-16"
+                    size="md"
                     disabled={!canClick()}
                     tooltip={{ content: 'Turn off coolant' }}
                 />

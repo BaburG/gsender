@@ -19,6 +19,8 @@ export type Notification = {
     timestamp: Date | string;
 };
 
+export type BackupFrequencies = 'On Update' | 'Daily' | 'Weekly' | 'Monthly';
+
 // Interfaces
 
 export interface Workspace {
@@ -35,20 +37,26 @@ export interface Workspace {
     longestTimeRun: number;
     defaultFirmware: string;
     outlineMode: string;
+    outlineSpeed: number | null;
     revertWorkspace: boolean;
+    promptExit: boolean;
+    backupFreq: BackupFrequencies;
+    lastBackupTime: number;
     park: object;
     jobTimes: number[];
     toolChange: {
         passthrough: boolean;
         skipDialog: boolean;
+        moveToManualPosition: boolean;
+        manualPosition: BasicPosition;
     };
     toolChangeOption:
-    | 'Ignore'
-    | 'Pause'
-    | 'Standard Re-zero'
-    | 'Flexible Re-zero'
-    | 'Fixed Tool Sensor'
-    | 'Code';
+        | 'Ignore'
+        | 'Pause'
+        | 'Standard Re-zero'
+        | 'Flexible Re-zero'
+        | 'Fixed Tool Sensor'
+        | 'Code';
     toolChangePosition: BasicPosition;
     toolChangeHooks: {
         preHook: string;
@@ -77,6 +85,7 @@ export interface Workspace {
         defaultFirmwareSettings: RotarySettings;
         forceHardLimits: boolean;
         forceSoftLimits: boolean;
+        useAaxisForGrbl: boolean;
     };
     shouldWarnZero: boolean;
     diagnostics: {

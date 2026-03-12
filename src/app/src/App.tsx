@@ -8,10 +8,9 @@ import { sagaMiddleware } from 'app/store/redux/sagas';
 import store from 'app/store';
 import * as user from 'app/lib/user';
 import controller from 'app/lib/controller';
-import ConfirmationDialog from 'app/components/ConfirmationDialog/ConfirmationDialog';
-
 import { Toaster } from './components/shadcn/Sonner';
 import { ReactRoutes } from './react-routes';
+import { AccessibilitySettingsHandler } from './features/Helper/AccessibilitySettingsHandler';
 
 function App() {
     useEffect(() => {
@@ -40,6 +39,7 @@ function App() {
     return (
         <>
             <ReduxProvider store={reduxStore}>
+                <AccessibilitySettingsHandler />
                 <Toaster
                     richColors
                     closeButton

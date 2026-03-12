@@ -12,11 +12,12 @@ import { IoIosSwap } from 'react-icons/io';
 import { FaArrowsSpin } from 'react-icons/fa6';
 import { MdSettingsApplications } from 'react-icons/md';
 import { SiCoronaengine } from 'react-icons/si';
-import { MdOutlineReadMore } from 'react-icons/md';
+import { MdOutlineReadMore, MdAccessibility } from 'react-icons/md';
 import { IconType } from 'react-icons';
 import {
     TOUCHPLATE_TYPE_3D,
     TOUCHPLATE_TYPE_AUTOZERO,
+    TOUCHPLATE_TYPE_BITZERO,
     TOUCHPLATE_TYPE_STANDARD,
     TOUCHPLATE_TYPE_ZERO,
 } from 'app/lib/constants';
@@ -40,6 +41,7 @@ import {
     WORKSPACE_MODE,
 } from 'app/constants';
 import { LaserWizard } from 'app/features/Config/components/wizards/LaserWizard.tsx';
+import { ATCIWizard } from 'app/features/Config/components/wizards/ATCiWizard.tsx';
 import {
     GamepadLinkWizard,
     KeyboardLinkWizard,
@@ -66,6 +68,7 @@ import {
     TOASTER_LONG,
     TOASTER_UNTIL_CLOSE,
 } from 'app/lib/toaster/ToasterLib';
+import isElectron from 'is-electron';
 
 export interface SettingsMenuSection {
     label: string;
@@ -111,12 +114,14 @@ export interface gSenderSetting {
     toolLink?: string;
     toolLinkLabel?: string;
     disabled?: () => boolean;
-    hidden?: () => boolean;
+    hidden?: (getPending: (key: string, defaultValue?: any) => any) => boolean;
     onDisable?: () => void;
     onEnable?: () => void;
     onUpdate?: () => void;
     min?: number;
     max?: number;
+    remap?: EEPROM;
+    remapped?: boolean;
     forceEEPROM?: boolean;
 }
 
@@ -219,8 +224,16 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         key: 'workspace.outlineMode',
                         type: 'select',
                         description:
-                            'Detailed follows the outline of the loaded file more closely, while Square calculates much faster since it runs a simple box outline.',
+                            'Detailed follows the outline of the loaded file more closely, Square calculates a simple box outline, and Rapidless Square computes the bounding box using only cutting moves (G1/G2/G3), ignoring rapid travel (G0).',
                         options: OUTLINE_MODES,
+                    },
+                    {
+                        label: 'Outline speed',
+                        key: 'workspace.outlineSpeed',
+                        type: 'number',
+                        unit: 'mm/min',
+                        description:
+                            'Set a specific feedrate for outline movements (e.g. 3000). If zero, uses rapid moves (G0) at maximum machine speed. Lower values provide more controlled movements.',
                     },
                     {
                         label: 'Revert workspace',
@@ -230,6 +243,37 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         description:
                             "Allow g-code 'job finishing' commands like M2 and M30 to reset your CNC's workspace back to G54 at the end of each job.",
                         options: OUTLINE_MODES,
+                    },
+                    {
+                        label: 'Prompt on exit',
+                        key: 'workspace.promptExit',
+                        type: 'boolean',
+                        description:
+                            'Pop up a confirmation window when exiting the program.',
+                        onEnable: () => {
+                            if (isElectron()) {
+                                window.ipcRenderer.send(
+                                    'assignPromptExit',
+                                    true,
+                                );
+                            }
+                        },
+                        onDisable: () => {
+                            if (isElectron()) {
+                                window.ipcRenderer.send(
+                                    'assignPromptExit',
+                                    false,
+                                );
+                            }
+                        },
+                    },
+                    {
+                        label: 'Settings Backup Frequency',
+                        key: 'workspace.backupFreq',
+                        type: 'select',
+                        description:
+                            'Choose when your gSender settings backup is generated.',
+                        options: ['On Update', 'Daily', 'Weekly', 'Monthly'],
                     },
                     {
                         label: 'Send usage data',
@@ -260,6 +304,20 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         onUpdate: () => {
                             pubsub.publish('theme:change');
                         },
+                    },
+                    {
+                        label: 'Hide processed lines',
+                        key: 'widgets.visualizer.hideProcessedLines',
+                        description:
+                            'Hide processed g-code lines in the visualizer.',
+                        type: 'boolean',
+                    },
+                    {
+                        label: 'Rotary diameter offset',
+                        key: 'widgets.visualizer.rotaryDiameterOffsetEnabled',
+                        description:
+                            'Apply rotary visualization offset when a cylinder diameter is found in the file.',
+                        type: 'boolean',
                     },
                     {
                         label: 'Lightweight options',
@@ -437,6 +495,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'eeprom',
                         eID: '$37',
                     },
+                    {
+                        type: 'eeprom',
+                        eID: '$680',
+                    },
                 ],
             },
             {
@@ -544,6 +606,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             TOUCHPLATE_TYPE_AUTOZERO,
                             TOUCHPLATE_TYPE_ZERO,
                             TOUCHPLATE_TYPE_3D,
+                            TOUCHPLATE_TYPE_BITZERO,
                         ],
                     },
                     {
@@ -553,8 +616,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Diameter of probe tip where it touches off the material. (Default 2)',
                         type: 'number',
                         unit: 'mm',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
@@ -569,8 +632,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Plate thickness where the bit touches when Z-axis probing using the Standard Block plate. (Default 15)',
                         type: 'number',
                         unit: 'mm',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
@@ -585,8 +648,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Plate thickness where the bit touches when Z-axis probing using the AutoZero plate. (Default 5)',
                         type: 'number',
                         unit: 'mm',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
@@ -601,8 +664,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Plate thickness where the bit touches when Z-axis probing when using the Z Probe plate. (Default 15)',
                         type: 'number',
                         unit: 'mm',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
@@ -618,13 +681,45 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'number',
                         unit: 'mm',
                         defaultValue: 0,
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
                             // Hidden if we are not using 3D probe
                             return probeType !== TOUCHPLATE_TYPE_3D;
+                        },
+                    },
+                    {
+                        label: 'BitZero thickness (XYZ)',
+                        key: 'workspace.probeProfile.zThickness.bitZero',
+                        description:
+                            'Plate thickness for XYZ probing where the bit touches the inset surface inside the bore. (Default 13)',
+                        type: 'number',
+                        unit: 'mm',
+                        hidden: (getPending) => {
+                            const probeType = getPending(
+                                'workspace.probeProfile.touchplateType',
+                                '',
+                            );
+                            // Hidden if we are not using BitZero
+                            return probeType !== TOUCHPLATE_TYPE_BITZERO;
+                        },
+                    },
+                    {
+                        label: 'BitZero thickness (Z-only)',
+                        key: 'workspace.probeProfile.zThickness.bitZeroZOnly',
+                        description:
+                            'Plate thickness for Z-only probing where the probe is placed flat on the surface. (Default 15.5)',
+                        type: 'number',
+                        unit: 'mm',
+                        hidden: (getPending) => {
+                            const probeType = getPending(
+                                'workspace.probeProfile.touchplateType',
+                                '',
+                            );
+                            // Hidden if we are not using BitZero
+                            return probeType !== TOUCHPLATE_TYPE_BITZERO;
                         },
                     },
                     {
@@ -634,8 +729,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Plate thickness where the bit touches when X/Y-axis probing. (Default 10)',
                         type: 'number',
                         unit: 'mm',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
@@ -651,8 +746,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'number',
                         unit: 'mm',
                         defaultValue: 10,
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
@@ -667,13 +762,16 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Movement in Z before it gives up on probing. (Reduce this value if you get a soft limit alarm 2 when probing, Default 30)',
                         type: 'number',
                         unit: 'mm',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
-                            // Hidden if we are using AutoZero touchplate
-                            return probeType === TOUCHPLATE_TYPE_AUTOZERO;
+                            // Hidden if we are using AutoZero or BitZero touchplate
+                            return (
+                                probeType === TOUCHPLATE_TYPE_AUTOZERO ||
+                                probeType === TOUCHPLATE_TYPE_BITZERO
+                            );
                         },
                     },
                     {
@@ -683,13 +781,16 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Probe speed before the first touch-off. (Default 150)',
                         type: 'number',
                         unit: 'mm/min',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
-                            // Hidden if we are using AutoZero touchplate
-                            return probeType === TOUCHPLATE_TYPE_AUTOZERO;
+                            // Hidden if we are using AutoZero or BitZero touchplate
+                            return (
+                                probeType === TOUCHPLATE_TYPE_AUTOZERO ||
+                                probeType === TOUCHPLATE_TYPE_BITZERO
+                            );
                         },
                     },
                     {
@@ -699,13 +800,16 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Speed for the more accurate second touch-off. (Default 75)',
                         type: 'number',
                         unit: 'mm/min',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
-                            // Hidden if we are using AutoZero touchplate
-                            return probeType === TOUCHPLATE_TYPE_AUTOZERO;
+                            // Hidden if we are using AutoZero or BitZero touchplate
+                            return (
+                                probeType === TOUCHPLATE_TYPE_AUTOZERO ||
+                                probeType === TOUCHPLATE_TYPE_BITZERO
+                            );
                         },
                     },
                     {
@@ -715,13 +819,53 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'How far the bit moves away after a successful touch. (Default 2)',
                         type: 'number',
                         unit: 'mm',
-                        hidden: () => {
-                            const probeType = store.get(
+                        hidden: (getPending) => {
+                            const probeType = getPending(
                                 'workspace.probeProfile.touchplateType',
                                 '',
                             );
-                            // Hidden if we are using AutoZero touchplate
-                            return probeType === TOUCHPLATE_TYPE_AUTOZERO;
+                            // Hidden if we are using AutoZero or BitZero touchplate
+                            return (
+                                probeType === TOUCHPLATE_TYPE_AUTOZERO ||
+                                probeType === TOUCHPLATE_TYPE_BITZERO
+                            );
+                        },
+                    },
+                    {
+                        label: 'Final Z Retraction',
+                        key: 'widgets.probe.zRetractNormal',
+                        description:
+                            'How far the bit moves away on the Z axis at the end of the routine. (Default 2)',
+                        type: 'number',
+                        min: 1,
+                        unit: 'mm',
+                        hidden: (getPending) => {
+                            const probeType = getPending(
+                                'workspace.probeProfile.touchplateType',
+                                '',
+                            );
+                            // Hidden if we are using AutoZero or BitZero touchplate
+                            return (
+                                probeType === TOUCHPLATE_TYPE_AUTOZERO ||
+                                probeType === TOUCHPLATE_TYPE_BITZERO
+                            );
+                        },
+                    },
+                    {
+                        label: 'Final Z Retraction',
+                        key: 'widgets.probe.zRetractAuto',
+                        description:
+                            'How far the bit moves away on the Z axis at the end of the routine. (Default 1)',
+                        type: 'number',
+                        min: 1,
+                        unit: 'mm',
+                        hidden: (getPending) => {
+                            const probeType = getPending(
+                                'workspace.probeProfile.touchplateType',
+                                '',
+                            );
+                            // Hidden if we are using AutoZero or BitZero touchplate
+                            return probeType !== TOUCHPLATE_TYPE_AUTOZERO;
                         },
                     },
                     {
@@ -742,12 +886,12 @@ export const SettingsMenu: SettingsMenuSection[] = [
             {
                 label: '',
                 settings: [
-                    { type: 'eeprom', eID: '$450' },
-                    { type: 'eeprom', eID: '$451' },
-                    { type: 'eeprom', eID: '$452' },
-                    { type: 'eeprom', eID: '$453' },
-                    { type: 'eeprom', eID: '$454' },
-                    { type: 'eeprom', eID: '$455' },
+                    { type: 'eeprom', eID: '$450', remap: '$590' },
+                    { type: 'eeprom', eID: '$451', remap: '$591' },
+                    { type: 'eeprom', eID: '$452', remap: '$592' },
+                    { type: 'eeprom', eID: '$453', remap: '$490' },
+                    { type: 'eeprom', eID: '$454', remap: '$491' },
+                    { type: 'eeprom', eID: '$455', remap: '$492' },
                 ],
             },
         ],
@@ -795,6 +939,13 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     {
                         type: 'eeprom',
                         eID: '$21',
+                    },
+                    {
+                        label: 'Prevent jogging past limit switches',
+                        key: 'workspace.preventJoggingPastLimits',
+                        type: 'boolean',
+                        description:
+                            'If enabled, gSender will prevent jogging in a direction where a limit switch is already triggered.',
                     },
                 ],
             },
@@ -1177,16 +1328,20 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Spindle on delay',
                         key: 'widgets.spindle.delay',
                         description:
-                            'Adds a delay to give the spindle time to spin up. ($392)',
+                            'Adds a delay to give the spindle time to spin up. ($392, Default 0)',
                         type: 'hybrid',
                         eID: '$392',
                         unit: 's',
                     },
                     {
+                        type: 'eeprom',
+                        eID: '$539',
+                    },
+                    {
                         label: 'Minimum spindle speed',
                         key: 'widgets.spindle.spindleMin',
                         description:
-                            'Match this to the minimum speed of your spindle. ($31)',
+                            'Match this to the minimum speed of your spindle. ($31, Default 10000)',
                         type: 'hybrid',
                         eID: '$31',
                         forceEEPROM: true,
@@ -1196,11 +1351,20 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Maximum spindle speed',
                         key: 'widgets.spindle.spindleMax',
                         description:
-                            'Match this to the maximum speed of your spindle. ($30)',
+                            'Match this to the maximum speed of your spindle. ($30, Default 30000)',
                         type: 'hybrid',
                         eID: '$30',
                         forceEEPROM: true,
                         unit: 'rpm',
+                    },
+                    {
+                        label: 'Spindle speed input type',
+                        key: 'widgets.spindle.inputType',
+                        type: 'select',
+                        description:
+                            'Choose between a slider or a number input for adjusting spindle speed.',
+                        options: ['Slider', 'Number'],
+                        defaultValue: 'Slider',
                     },
                     {
                         type: 'eeprom',
@@ -1262,6 +1426,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     {
                         type: 'eeprom',
                         eID: '$36',
+                    },
+                    {
+                        type: 'eeprom',
+                        eID: '$709',
                     },
                 ],
             },
@@ -1336,6 +1504,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'eeprom',
                         eID: '$479',
                     },
+                    {
+                        type: 'eeprom',
+                        eID: '$681',
+                    },
                 ],
             },
             {
@@ -1345,12 +1517,13 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     {
                         type: 'eeprom',
                         eID: '$743',
+                        remap: '$716',
                     },
                     {
                         label: 'Minimum laser power',
                         key: 'widgets.spindle.laser.minPower',
                         description:
-                            'Match this to the minimum S word setting in your laser CAM software. ($731)',
+                            'Match this to the minimum S word setting in your laser CAM software. ($731, Default 0)',
                         type: 'hybrid',
                         eID: '$731',
                         unit: '',
@@ -1359,7 +1532,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Maximum laser power',
                         key: 'widgets.spindle.laser.maxPower',
                         description:
-                            'Match this to the maximum S word setting in your laser CAM software. ($730)',
+                            'Match this to the maximum S word setting in your laser CAM software. ($730, Default 255.000)',
                         type: 'hybrid',
                         eID: '$730',
                         unit: '',
@@ -1375,7 +1548,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Laser X offset',
                         key: 'widgets.spindle.laser.xOffset',
                         description:
-                            'X-axis offset from the spindle. (Mark with a v-bit then track the laser movement to reach that mark, $741)',
+                            'X-axis offset from the spindle. (Mark with a v-bit then track the laser movement to reach that mark, $741, Default 0)',
                         type: 'hybrid',
                         eID: '$741',
                         unit: 'mm',
@@ -1384,7 +1557,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Laser Y offset',
                         key: 'widgets.spindle.laser.yOffset',
                         description:
-                            'Y-axis offset from the spindle. (Mark with a v-bit then track the laser movement to reach that mark, $742)',
+                            'Y-axis offset from the spindle. (Mark with a v-bit then track the laser movement to reach that mark, $742, Default 0)',
                         type: 'hybrid',
                         eID: '$742',
                         unit: 'rpm',
@@ -1425,10 +1598,30 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'select',
                         options: ['Disabled', 'Mist', 'Flood', 'Both'],
                     },
-                    { type: 'eeprom', eID: '$456' },
-                    { type: 'eeprom', eID: '$457' },
-                    { type: 'eeprom', eID: '$458' },
-                    { type: 'eeprom', eID: '$459' },
+                    {
+                        type: 'eeprom',
+                        eID: '$673',
+                    },
+                    { type: 'eeprom', eID: '$456', remap: '$750' },
+                    { type: 'eeprom', eID: '$457', remap: '$751' },
+                    { type: 'eeprom', eID: '$458', remap: '$752' },
+                    { type: 'eeprom', eID: '$459', remap: '$753' },
+                    { type: 'eeprom', eID: '$754' },
+                    { type: 'eeprom', eID: '$755' },
+                    { type: 'eeprom', eID: '$756' },
+                    { type: 'eeprom', eID: '$757' },
+                    { type: 'eeprom', eID: '$758' },
+                    { type: 'eeprom', eID: '$759' },
+                    { type: 'eeprom', eID: '$760' },
+                    { type: 'eeprom', eID: '$761' },
+                    { type: 'eeprom', eID: '$762' },
+                    { type: 'eeprom', eID: '$763' },
+                    { type: 'eeprom', eID: '$764' },
+                    { type: 'eeprom', eID: '$765' },
+                    { type: 'eeprom', eID: '$766' },
+                    { type: 'eeprom', eID: '$767' },
+                    { type: 'eeprom', eID: '$768' },
+                    { type: 'eeprom', eID: '$769' },
                 ],
             },
         ],
@@ -1463,7 +1656,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Resolution',
                         key: 'workspace.rotaryAxis.firmwareSettings.$101',
                         description:
-                            'Travel resolution in steps per degree. ($103)',
+                            'Travel resolution in steps per degree. ($103, Default 19.75308642)',
                         type: 'hybrid',
                         eID: '$103',
                         unit: 'step/deg',
@@ -1472,7 +1665,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Max speed',
                         key: 'workspace.rotaryAxis.firmwareSettings.$111',
                         description:
-                            'Max axis speed, also used for G0 rapids. ($113)',
+                            'Max axis speed, also used for G0 rapids. ($113, Default 8000)',
                         type: 'hybrid',
                         eID: '$113',
                         unit: 'deg/min',
@@ -1491,6 +1684,26 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         description:
                             'Enable hard limits when toggling into rotary mode (grbl only).',
                         type: 'boolean',
+                    },
+                    {
+                        type: 'eeprom',
+                        eID: '$538',
+                    },
+                    {
+                        label: 'Use A-axis for grbl',
+                        type: 'boolean',
+                        description:
+                            'Use the A-axis for grbl instead of the Y-axis (grbl only). This is useful for devices that support A-axis commands.',
+                        key: 'workspace.rotaryAxis.useAaxisForGrbl',
+                        onUpdate: () => {
+                            const useAaxisForGrbl = store.get(
+                                'workspace.rotaryAxis.useAaxisForGrbl',
+                                false,
+                            );
+                            controller.command('settings:updated', {
+                                useAaxisForGrbl,
+                            });
+                        },
                     },
                 ],
             },
@@ -1543,6 +1756,12 @@ export const SettingsMenu: SettingsMenuSection[] = [
                 label: '',
                 settings: [
                     {
+                        type: 'boolean',
+                        label: 'Enable ATC Controls',
+                        key: 'workspace.atcEnabled',
+                        description: 'Enable ATC Controls',
+                    },
+                    {
                         label: 'Passthrough',
                         type: 'boolean',
                         key: 'workspace.toolChange.passthrough',
@@ -1578,12 +1797,45 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         unit: 'mm',
                         description:
                             'The start location for probing. To not break bits, set it using a long tool with extra Z-axis space above the sensor. (Z should be negative)',
-                        hidden: () => {
-                            const strategy = store.get(
+                        hidden: (getPending) => {
+                            const strategy = getPending(
                                 'workspace.toolChangeOption',
                                 '',
                             );
                             return strategy !== 'Fixed Tool Sensor';
+                        },
+                    },
+                    {
+                        label: 'Use manual toolchange location',
+                        type: 'boolean',
+                        key: 'workspace.toolChange.moveToManualPosition',
+                        description:
+                            'Move the CNC to a specified location as part of the fixed toolchange routine instead of prompting to change over the probe.',
+                        hidden: (getPending) => {
+                            const strategy = getPending(
+                                'workspace.toolChangeOption',
+                                '',
+                            );
+                            return strategy !== 'Fixed Tool Sensor';
+                        },
+                    },
+                    {
+                        label: 'Manual toolchange location',
+                        type: 'location',
+                        key: 'workspace.toolChange.manualPosition',
+                        unit: 'mm',
+                        description:
+                            'The location where the CNC will move to during the manual toolchange routine.',
+                        hidden: (getPending) => {
+                            const strategy = getPending(
+                                'workspace.toolChangeOption',
+                                '',
+                            );
+                            const moveToLocation = getPending(
+                                'workspace.toolChange.moveToManualPosition',
+                                false,
+                            );
+                            return strategy !== 'Fixed Tool Sensor' || !moveToLocation;
                         },
                     },
                     {
@@ -1592,8 +1844,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         key: 'workspace.toolChangeHooks.preHook',
                         description:
                             'When using the Code strategy, this code is run as soon as an M6 command is encountered.',
-                        hidden: () => {
-                            const strategy = store.get(
+                        hidden: (getPending) => {
+                            const strategy = getPending(
                                 'workspace.toolChangeOption',
                                 '',
                             );
@@ -1606,14 +1858,37 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         key: 'workspace.toolChangeHooks.postHook',
                         description:
                             'When using the Code strategy, this code is run after a tool change is completed.',
-                        hidden: () => {
-                            const strategy = store.get(
+                        hidden: (getPending) => {
+                            const strategy = getPending(
                                 'workspace.toolChangeOption',
                                 '',
                             );
                             return strategy !== 'Code';
                         },
                     },
+                    {
+                        type: 'eeprom',
+                        eID: '$675',
+                    },
+                ],
+            },
+            {
+                label: 'Keepout',
+                settings: [
+                    {
+                        type: 'boolean',
+                        label: 'Warn on Home',
+                        description:
+                            'Warn when homing that the keepout area is disabled and collisions are possible depending on homing cycle.',
+                        key: 'widgets.atc.warnOnHome',
+                    },
+                    { type: 'eeprom', eID: '$683' },
+                    { type: 'eeprom', eID: '$684' },
+                    { type: 'eeprom', eID: '$685' },
+                    { type: 'eeprom', eID: '$686' },
+                    { type: 'eeprom', eID: '$687' },
+                    { type: 'eeprom', eID: '$688' },
+                    { type: 'eeprom', eID: '$689' },
                 ],
             },
         ],
@@ -1632,6 +1907,13 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'IP address used to connect to CNCs over Ethernet and other network scanning. (Default 192.168.5.1)',
                         type: 'ip',
                     },
+                    {
+                        label: 'Ethernet Port',
+                        key: 'widgets.connection.ethernetPort',
+                        description:
+                            'What port is exposed by the controller for ethernet connectivity.  This will be used when attempting to connect over ethernet. (Default 23)',
+                        type: 'number',
+                    },
                     { type: 'eeprom', eID: '$301' },
                     { type: 'eeprom', eID: '$302' },
                     { type: 'eeprom', eID: '$303' },
@@ -1641,6 +1923,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     { type: 'eeprom', eID: '$305' },
                     { type: 'eeprom', eID: '$307' },
                     { type: 'eeprom', eID: '$308' },
+                    { type: 'eeprom', eID: '$535' },
                 ],
             },
         ],
@@ -1655,10 +1938,12 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     {
                         type: 'eeprom',
                         eID: '$664',
+                        remap: '$536',
                     },
                     {
                         type: 'eeprom',
                         eID: '$665',
+                        remap: '$537',
                     },
                 ],
             },
@@ -1698,7 +1983,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     { type: 'eeprom', eID: '$223' },
                     { type: 'eeprom', eID: '$338' },
                     { type: 'eeprom', eID: '$339' },
-                    { type: 'eeprom', eID: '$650' },
+
                     { type: 'eeprom', eID: '$651' },
                     { type: 'eeprom', eID: '$652' },
                     { type: 'eeprom', eID: '$653' },
@@ -1760,7 +2045,210 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     { type: 'eeprom', eID: '$481' },
                     { type: 'eeprom', eID: '$484' },
                     { type: 'eeprom', eID: '$486' },
+                    {
+                        type: 'eeprom',
+                        eID: '$534',
+                    },
+                    { type: 'eeprom', eID: '$650' },
                     { type: 'eeprom', eID: '$666' },
+                    { type: 'eeprom', eID: '$676' },
+                ],
+            },
+        ],
+    },
+    {
+        label: 'Accessibility',
+        icon: MdAccessibility,
+        settings: [
+            {
+                label: 'Announcements',
+                settings: [
+                    {
+                        label: 'Status announcements',
+                        key: 'workspace.accessibility.statusAnnouncements',
+                        description:
+                            'Automatically announce machine status changes (Idle, Running, Alarm, etc.) using screen readers.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Job progress announcements',
+                        key: 'workspace.accessibility.jobProgressAnnouncements',
+                        description:
+                            'Periodically announce job completion percentage.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Progress increment',
+                        key: 'workspace.accessibility.jobProgressIncrement',
+                        description:
+                            'The percentage increment at which to announce progress (e.g. every 10%).',
+                        type: 'number',
+                        min: 1,
+                        max: 50,
+                        unit: '%',
+                        hidden: () =>
+                            !store.get(
+                                'workspace.accessibility.jobProgressAnnouncements',
+                            ),
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                ],
+            },
+            {
+                label: 'Audio Cues',
+                settings: [
+                    {
+                        label: 'Enable audio cues',
+                        key: 'workspace.accessibility.audioCues.enabled',
+                        description:
+                            'Play short sounds for specific machine events.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Job complete sound',
+                        key: 'workspace.accessibility.audioCues.jobComplete',
+                        description: 'Play sound when a job finishes.',
+                        type: 'boolean',
+                        hidden: () =>
+                            !store.get('workspace.accessibility.audioCues.enabled'),
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Alarm sound',
+                        key: 'workspace.accessibility.audioCues.alarmTriggered',
+                        description:
+                            'Play sound when the machine enters an alarm state.',
+                        type: 'boolean',
+                        hidden: () =>
+                            !store.get('workspace.accessibility.audioCues.enabled'),
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Tool change sound',
+                        key: 'workspace.accessibility.audioCues.toolChange',
+                        description: 'Play sound when a tool change is required.',
+                        type: 'boolean',
+                        hidden: () =>
+                            !store.get('workspace.accessibility.audioCues.enabled'),
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Probe success sound',
+                        key: 'workspace.accessibility.audioCues.probeSuccess',
+                        description: 'Play sound after a successful probe.',
+                        type: 'boolean',
+                        hidden: () =>
+                            !store.get('workspace.accessibility.audioCues.enabled'),
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                ],
+            },
+            {
+                label: 'Navigation & Visuals',
+                settings: [
+                    {
+                        label: 'Focus rings',
+                        key: 'workspace.accessibility.focusRings',
+                        description:
+                            'Show a high-contrast ring around the currently focused element for better keyboard navigation visibility.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Focus trapping',
+                        key: 'workspace.accessibility.focusTrapping',
+                        description:
+                            'Keep keyboard focus within modals and dialogs when they are open.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Reduced motion',
+                        key: 'workspace.accessibility.reducedMotion',
+                        description:
+                            'Minimize animations and UI transitions for improved visibility and accessibility.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                ],
+            },
+            {
+                label: 'Visualizer',
+                settings: [
+                    {
+                        label: 'Keyboard control',
+                        key: 'workspace.accessibility.visualizerKeyboardControl',
+                        description:
+                            'Allow orbiting, panning, and zooming the 3D visualizer using arrow keys and hotkeys.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Job summary',
+                        key: 'workspace.accessibility.gcodeSummary.enabled',
+                        description:
+                            'Provide a text summary of the loaded G-code file for screen readers.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                    {
+                        label: 'Show summary visually',
+                        key: 'workspace.accessibility.gcodeSummary.showVisually',
+                        description:
+                            'Display the G-code summary text visually above the visualizer.',
+                        type: 'boolean',
+                        hidden: () =>
+                            !store.get(
+                                'workspace.accessibility.gcodeSummary.enabled',
+                            ),
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
+                ],
+            },
+            {
+                label: 'Keyboard Map',
+                settings: [
+                    {
+                        label: 'Show keyboard shortcut map',
+                        key: 'workspace.accessibility.showKeyboardMap',
+                        description:
+                            'Show an overlay with active keyboard shortcuts.',
+                        type: 'boolean',
+                        onUpdate: () => {
+                            pubsub.publish('accessibility:update');
+                        },
+                    },
                 ],
             },
         ],

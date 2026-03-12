@@ -15,7 +15,12 @@ export function unlockFirmware(
     code: string | number,
 ) {
     if (state === GRBL_ACTIVE_STATE_ALARM) {
-        controller.command('unlock');
+        if (code === 17 || code === 10) {
+            controller.command('reset:limit');
+        } else {
+            controller.command('unlock');
+        }
+
         if (code === 11 || code === 'Homing') {
             controller.command('populateConfig');
         }
@@ -35,8 +40,12 @@ export function UnlockButton() {
     const isAlarm = activeState === GRBL_ACTIVE_STATE_ALARM;
     const activateUnlockButton = isHold || isAlarm;
 
+    const ariaLabel = activateUnlockButton
+        ? `Machine is ${isAlarm ? 'locked in alarm' : 'held'}. Click to unlock machine.`
+        : 'Machine is unlocked.';
+
     return (
-        <div className="text-4xl absolute top-3 max-xl:top-2 left-72">
+        <div className="text-4xl absolute top-3 max-xl:top-2 left-72 max-sm:left-56">
             <Tooltip content="Unlock Machine">
                 <button
                     className={cx('group text-gray-400', {
@@ -44,6 +53,8 @@ export function UnlockButton() {
                             activateUnlockButton,
                     })}
                     onClick={() => unlockFirmware(activeState, alarmCode)}
+                    aria-label={ariaLabel}
+                    role="button"
                 >
                     <IoLockOpenOutline
                         className={cx('hidden group-hover:block', {

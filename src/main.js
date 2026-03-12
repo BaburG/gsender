@@ -47,10 +47,30 @@ import { parseAndReturnGCode } from './electron-app/RecentFiles';
 import { asyncCallWithTimeout } from './electron-app/AsyncTimeout';
 import { getGRBLLog } from './electron-app/grblLogs';
 
+// Hot reload in development
+if (process.env.NODE_ENV === 'development') {
+    try {
+        require('electron-reloader')(module, {
+            debug: false,
+            watchRenderer: false, // Vite handles frontend
+            ignore: [
+                /node_modules/,
+                /output\/app/,
+                /\.map$/,
+            ],
+        });
+    } catch (err) {
+        // electron-reloader not available, continue without it
+    }
+}
+
 let windowManager = null;
 let hostInformation = {};
 let grblLog = log.create('grbl');
 let logPath;
+const externalRendererUrl = process.env.NODE_ENV === 'development'
+    ? process.env.ELECTRON_RENDERER_URL
+    : '';
 
 if (process.env.NODE_ENV === 'production') {
     Sentry.init({
@@ -68,6 +88,8 @@ const main = () => {
     require('@electron/remote/main').initialize();
 
     let prevDirectory = '';
+    let pendingFileToOpen = null;
+    let isRendererReady = false;
 
     if (shouldQuitImmediately) {
         app.quit();
@@ -84,8 +106,24 @@ const main = () => {
         if (window) {
             if (window.isMinimized()) {
                 window.restore();
-                window.focus();
             }
+            window.focus();
+            const filePath = commandLine.find(arg =>
+                /\.(gcode|gc|nc|tap|cnc)$/i.test(arg)
+            );
+            if (filePath) {
+                loadFileAssociation(filePath, window);
+            }
+        }
+    });
+
+    app.on('open-file', (event, filePath) => {
+        event.preventDefault();
+        const window = windowManager?.getWindow();
+        if (window && isRendererReady) {
+            loadFileAssociation(filePath, window);
+        } else {
+            pendingFileToOpen = filePath;
         }
     });
 
@@ -111,6 +149,20 @@ const main = () => {
     logPath = path.join(app.getPath('userData'), 'logs/grbl.log');
     grblLog.transports.file.resolvePath = () => logPath;
 
+    const loadFileAssociation = async (filePath, window) => {
+        try {
+            const fileMetadata = await parseAndReturnGCode({ filePath });
+            window.webContents.send('returned-upload-dialog-data', {
+                data: fileMetadata.result,
+                size: fileMetadata.size,
+                name: fileMetadata.name,
+                path: fileMetadata.fullPath,
+            });
+        } catch (err) {
+            log.error(`Error loading file association: ${err}`);
+        }
+    };
+
     app.whenReady().then(async () => {
         try {
             await session.defaultSession.clearCache();
@@ -118,13 +170,15 @@ const main = () => {
             windowManager = new WindowManager();
             // Create and show splash before server starts
             const splashScreen = windowManager.createSplashScreen({
-                width: 500,
+                width: 600,
                 height: 400,
                 show: false,
                 frame: false,
+                transparent: true,
+                backgroundColor: '#00000000',
             });
             splashScreen.loadFile(
-                path.join(__dirname, 'app/assets/Splashscreen.gif'),
+                path.join(__dirname, 'app/assets/Splashscreen.webp'),
             );
             splashScreen.webContents.on('did-finish-load', () => {
                 splashScreen.show();
@@ -134,40 +188,75 @@ const main = () => {
                 splashScreen.focus();
             });
 
-            let res;
-            try {
-                res = await launchServer();
-            } catch (error) {
-                if (error.message.includes('EADDR')) {
-                    dialog.showMessageBoxSync(null, {
-                        title: 'Error Connecting to Remote Address',
-                        message:
-              'There was an problem connecting to the remote address in Shapestar.',
-                        detail:
-              'Remote mode has been disabled. Please verify the configured IP address before restarting the application.',
-                    });
-                    app.relaunch();
-                    app.exit(-1);
-                } else {
-                    log.error(error);
+            let url = '';
+            let kiosk = false;
+
+            if (externalRendererUrl) {
+                url = externalRendererUrl;
+                try {
+                    const parsedUrl = new URL(url);
+                    hostInformation = {
+                        address: parsedUrl.hostname,
+                        port: Number(parsedUrl.port) || (parsedUrl.protocol === 'https:' ? 443 : 80),
+                    };
+                } catch (error) {
+                    hostInformation = {};
                 }
-            }
-
-            const { address, port, kiosk } = { ...res };
-            log.info(`Returned - http://${address}:${port}`);
-            hostInformation = {
-                address,
-                port,
-            };
-            if (!(address && port)) {
-                log.error(
-                    'Unable to start the server at ' +
-            chalk.cyan(`http://${address}:${port}`),
-                );
+                log.info(`Using external renderer URL in development: ${url}`);
+            } else if (process.env.NODE_ENV === 'development') {
+                const errorMessage = 'ELECTRON_RENDERER_URL is required in development mode';
+                log.error(errorMessage);
+                await dialog.showMessageBox({
+                    type: 'error',
+                    title: 'Development Startup Error',
+                    message: errorMessage,
+                });
+                app.exit(1);
                 return;
-            }
+            } else {
+                let res;
+                try {
+                    res = await launchServer();
+                } catch (error) {
+                    const isBindingError = error.errData?.bindingErr ||
+                        /EADDR|address not available|address already in use/i.test(error.message);
 
-            const url = `http://${address}:${port}`;
+                    if (isBindingError) {
+                        log.warn('Remote mode binding failed — remote config has been reset.');
+                        dialog.showMessageBoxSync(null, {
+                            title: 'Remote Mode Configuration Error',
+                            message: 'gSender could not connect to the configured remote address.',
+                            detail: 'Remote mode has been disabled and the configuration has been reset. Please restart gSender.',
+                        });
+                    } else {
+                        log.error('Unexpected server startup error:', error);
+                        dialog.showMessageBoxSync(null, {
+                            title: 'Server Startup Error',
+                            message: 'gSender encountered an unexpected error while starting.',
+                            detail: String(error.message),
+                        });
+                    }
+                    app.exit(-1);
+                    return;
+                }
+
+                const { address, port, kiosk: resolvedKiosk } = { ...res };
+                kiosk = resolvedKiosk;
+                log.info(`Returned - http://${address}:${port}`);
+                hostInformation = {
+                    address,
+                    port,
+                };
+                if (!(address && port)) {
+                    log.error(
+                        'Unable to start the server at ' +
+                chalk.cyan(`http://${address}:${port}`),
+                    );
+                    return;
+                }
+
+                url = `http://${address}:${port}`;
+            }
             // The bounds is a rectangle object with the following properties:
             // * `x` Number - The x coordinate of the origin of the rectangle.
             // * `y` Number - The y coordinate of the origin of the rectangle.
@@ -175,7 +264,7 @@ const main = () => {
             // * `height` Number - The height of the rectangle.
             // resolution used to be 1024x768
             const bounds = {
-                minWidth: 1040,
+                minWidth: 1044,
                 minHeight: 796,
                 ...store.get('bounds'),
             };
@@ -185,6 +274,24 @@ const main = () => {
                 kiosk,
             };
             const window = await windowManager.openWindow(url, options, splashScreen);
+
+            // Check argv for file path on Windows/Linux cold start
+            if (process.platform !== 'darwin') {
+                const filePath = process.argv.find(arg =>
+                    /\.(gcode|gc|nc|tap|cnc)$/i.test(arg)
+                );
+                if (filePath) {
+                    pendingFileToOpen = filePath;
+                }
+            }
+
+            ipcMain.on('file-association-ready', () => {
+                isRendererReady = true;
+                if (pendingFileToOpen) {
+                    loadFileAssociation(pendingFileToOpen, window);
+                    pendingFileToOpen = null;
+                }
+            });
 
             // Power saver - display sleep higher precedence over app suspension
             powerSaveBlocker.start('prevent-display-sleep');
@@ -204,25 +311,27 @@ const main = () => {
             // Include release notes
             //autoUpdater.fullChangelog = true;
 
-            autoUpdater.on('update-available', (info) => {
-                setTimeout(() => {
-                    window.webContents.send('update_available', info);
-                }, 8000);
-            });
+            if (process.platform === 'win32') {
+                autoUpdater.on('update-available', (info) => {
+                    setTimeout(() => {
+                        window.webContents.send('update_available', info);
+                    }, 8000);
+                });
 
-            autoUpdater.on('error', (err) => {
-                window.webContents.send('updated_error', err);
-                log.error((err));
-            });
+                autoUpdater.on('error', (err) => {
+                    window.webContents.send('updated_error', err);
+                    log.error((err));
+                });
 
-            autoUpdater.on('download-progress', (info) => {
-                window.webContents.send('update_download_progress', info.percent);
-            });
+                autoUpdater.on('download-progress', (info) => {
+                    window.webContents.send('update_download_progress', info.percent);
+                });
 
-            ipcMain.once('restart_app', async () => {
-                await autoUpdater.downloadUpdate();
-                autoUpdater.quitAndInstall(false, false);
-            });
+                ipcMain.once('restart_app', async () => {
+                    await autoUpdater.downloadUpdate();
+                    autoUpdater.quitAndInstall(false, false);
+                });
+            }
 
             ipcMain.on('load-recent-file', async (msg, recentFile) => {
                 try {
@@ -406,17 +515,19 @@ const main = () => {
             });
         }
         //Check for available updates at end to avoid try-catch failing to load events
-        const internetConnectivity = await isOnline();
-        if (internetConnectivity) {
-            autoUpdater.autoDownload = false; // We don't want to force update but will prompt until it is updated
-            // There may be situations where something is blocking the update check outside of internet connectivity
-            // This sets a 4 second timeout on the await.
-            try {
-                asyncCallWithTimeout(autoUpdater.checkForUpdates(), 5000);
-            } catch (e) {
-                log.info(
-                    'Unable to check for app updates, likely no internet connection.',
-                );
+        if (process.platform === 'win32') {
+            const internetConnectivity = await isOnline();
+            if (internetConnectivity) {
+                autoUpdater.autoDownload = false; // We don't want to force update but will prompt until it is updated
+                // There may be situations where something is blocking the update check outside of internet connectivity
+                // This sets a 4 second timeout on the await.
+                try {
+                    asyncCallWithTimeout(autoUpdater.checkForUpdates(), 5000);
+                } catch (e) {
+                    log.info(
+                        'Unable to check for app updates, likely no internet connection.',
+                    );
+                }
             }
         }
     });

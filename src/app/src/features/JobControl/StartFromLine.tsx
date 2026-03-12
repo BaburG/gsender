@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import cx from 'classnames';
 import { Button as ShadButton } from 'app/components/shadcn/Button';
 import { Button } from 'app/components/Button';
 import { MdFormatListNumbered } from 'react-icons/md';
 import { useTypedSelector } from 'app/hooks/useTypedSelector';
-import store from 'app/store';
 import { METRIC_UNITS, IMPERIAL_UNITS } from 'app/constants';
 import { updateJobOverrides } from 'app/store/redux/slices/visualizer.slice';
 import controller from 'app/lib/controller';
@@ -21,36 +20,52 @@ import { FaPlay } from 'react-icons/fa';
 import { toast } from 'app/lib/toaster';
 import { useSelector } from 'react-redux';
 import { useWidgetState } from 'app/hooks/useWidgetState';
+import pubsub from 'pubsub-js';
+import { useWorkspaceState } from 'app/hooks/useWorkspaceState';
 
 type StartFromLineProps = {
     disabled: boolean;
     lastLine: number;
+    atcValidator?: () => [
+        boolean,
+        {
+            type: string;
+            title: string;
+            body: JSX.Element;
+        },
+    ];
 };
 
-const StartFromLine = ({ disabled, lastLine }: StartFromLineProps) => {
+const StartFromLine = ({
+    disabled,
+    lastLine,
+    atcValidator,
+}: StartFromLineProps) => {
     const zMax = useTypedSelector((state) => state.file.bbox.max.z);
+    const { units } = useWorkspaceState();
     const [state, setState] = useState({
         showModal: false,
         needsRecovery: false,
         value: lastLine,
         startFromLine: lastLine - 10 >= 0 ? lastLine - 10 : 0,
         waitForHoming: false,
-        safeHeight:
-            store.get('workspace.units', METRIC_UNITS) === METRIC_UNITS
-                ? 10
-                : 0.4,
-        defaultSafeHeight:
-            store.get('workspace.units', METRIC_UNITS) === METRIC_UNITS
-                ? 10
-                : 0.4,
+        safeHeight: units === METRIC_UNITS ? 10 : 0.4,
+        defaultSafeHeight: units === METRIC_UNITS ? 10 : 0.4,
     });
     const { delay = 0 } = useWidgetState('spindle');
 
     const lineTotal = useSelector((state: RootState) => state.file.total);
 
+    // update units for safe height
+    useEffect(() => {
+        setState({
+            ...state,
+            safeHeight: units === METRIC_UNITS ? 10 : 0.4,
+        });
+    }, [units]);
+
     const handleStartFromLine = () => {
         const { safeHeight, startFromLine } = state;
-        const units = store.get('workspace.units', METRIC_UNITS);
 
         setState((prev) => ({
             ...prev,
@@ -88,9 +103,21 @@ const StartFromLine = ({ disabled, lastLine }: StartFromLineProps) => {
                             disabled,
                     },
                 )}
-                onClick={() =>
-                    setState((prev) => ({ ...prev, showModal: true }))
-                }
+                onClick={() => {
+                    const [invalidATC, payload] = atcValidator();
+                    if (invalidATC) {
+                        if (payload.type === 'error') {
+                            pubsub.publish('atc_validator', payload);
+                            return;
+                        } else {
+                            console.log(
+                                'we warn but open the regular dialog with some special state',
+                            );
+                        }
+                    }
+
+                    setState((prev) => ({ ...prev, showModal: true }));
+                }}
             >
                 <MdFormatListNumbered className="text-2xl mr-1" /> Start From
             </ShadButton>
@@ -154,32 +181,37 @@ const StartFromLine = ({ disabled, lastLine }: StartFromLineProps) => {
                                     }}
                                     min={1}
                                     max={lineTotal}
-                                    className="w-20"
                                 />
                             </div>
                         </div>
                         <div className="mb-4">
                             <div className="grid grid-cols-4 gap-2 items-center">
-                                <label htmlFor="safeHeight">
-                                    With Safe Height:
-                                </label>
+                                {/*
+                                    tooltip cannot be nested any deeper, or the controlled input
+                                    wont fire onBlur when you click off of it
+                                */}
                                 <Tooltip
                                     content={`Default Value: ${state.defaultSafeHeight}`}
                                 >
-                                    <ControlledInput
-                                        id="safeHeight"
-                                        type="number"
-                                        value={state.safeHeight}
-                                        onChange={(e) => {
-                                            setState((prev) => ({
-                                                ...prev,
-                                                safeHeight: Number(
-                                                    e.target.value,
-                                                ),
-                                            }));
-                                        }}
-                                        className="w-20"
-                                    />
+                                    <>
+                                        <label htmlFor="safeHeight">
+                                            With Safe Height:
+                                        </label>
+                                        <ControlledInput
+                                            id="safeHeight"
+                                            type="number"
+                                            value={state.safeHeight}
+                                            onChange={(e) => {
+                                                setState((prev) => ({
+                                                    ...prev,
+                                                    safeHeight: Number(
+                                                        e.target.value,
+                                                    ),
+                                                }));
+                                            }}
+                                            suffix={units}
+                                        />
+                                    </>
                                 </Tooltip>
                                 <span className="text-sm col-span-2">
                                     (amount above the max height of the file)
@@ -189,7 +221,7 @@ const StartFromLine = ({ disabled, lastLine }: StartFromLineProps) => {
                         <div className="mb-4">
                             <p className="text-[#E2943B]">
                                 Calculates all your CNC movements, attributes,
-                                and gS automations to pick up right where you
+                                and gSender automations to pick up right where you
                                 left off.
                             </p>
                         </div>
@@ -198,7 +230,7 @@ const StartFromLine = ({ disabled, lastLine }: StartFromLineProps) => {
                                 onClick={handleStartFromLine}
                                 variant={'primary'}
                                 // disabled={!isConnected}
-                                className="flex flex-row p-3 items-center gap-2"
+                                className="flex flex-row p-3 items-center gap-2 portrait:px-6 portrait:text-xl"
                             >
                                 <FaPlay className="ml-2" />
                                 <span>Start from Line</span>

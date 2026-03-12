@@ -70,6 +70,9 @@ const SurfacingTool = () => {
     const [surfacing, setSurfacing] = useState<Surfacing>(getInitialState());
     const [gcode, setGcode] = useState('');
 
+    // Check if cut depth exceeds max depth
+    const isCutDepthExceedingMax = surfacing.skimDepth > surfacing.maxDepth;
+
     useEffect(() => {
         const saveState = () => {
             if (units === IMPERIAL_UNITS) {
@@ -140,7 +143,7 @@ const SurfacingTool = () => {
         <>
             <div className="bg-white dark:bg-transparent dark:text-white w-full flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-4 xl:gap-2">
+                    <div className="grid gap-4 max-xl:gap-3 xl:gap-2">
                         <p className="text-sm xl:text-base font-normal text-gray-500 dark:text-gray-300">
                             <b>For ideal wasteboard surfacing:</b> know your
                             CNCs exact movement limits accounting for limit
@@ -210,7 +213,7 @@ const SurfacingTool = () => {
                             </div>
                         </InputArea>
                         <InputArea label="Cut Depth & Max">
-                            <div className="grid grid-cols-[3fr_10px_3fr] gap-2 col-span-3">
+                            <div className="grid grid-cols-[3fr_10px_3fr] gap-x-2 gap-y-1 col-span-3">
                                 <Tooltip
                                     content={`Default is ${convertedDefaultSurfacingState.skimDepth} ${units}`}
                                 >
@@ -220,7 +223,10 @@ const SurfacingTool = () => {
                                         suffix={units}
                                         min={0.00001}
                                         max={10000}
-                                        className={cx('rounded', inputStyle)}
+                                        className={cx('rounded', inputStyle, {
+                                            'text-red-500 border-red-500':
+                                                isCutDepthExceedingMax,
+                                        })}
                                         wrapperClassName="w-full"
                                         value={surfacing.skimDepth}
                                         immediateOnChange
@@ -244,7 +250,10 @@ const SurfacingTool = () => {
                                         suffix={units}
                                         min={0.00001}
                                         max={10000}
-                                        className={inputStyle}
+                                        className={cx(inputStyle, {
+                                            'text-red-500 border-red-500':
+                                                isCutDepthExceedingMax,
+                                        })}
                                         wrapperClassName="w-full"
                                         value={surfacing.maxDepth}
                                         immediateOnChange
@@ -257,6 +266,13 @@ const SurfacingTool = () => {
                                     />
                                 </Tooltip>
                             </div>
+                            {isCutDepthExceedingMax && (
+                                <p className="col-span-4 text-[10px] xl:text-xs text-red-500 leading-tight">
+                                    Warning: Cut depth ({surfacing.skimDepth}{' '}
+                                    {units}) exceeds max depth (
+                                    {surfacing.maxDepth} {units})
+                                </p>
+                            )}
                         </InputArea>
                         <InputArea label="Bit Diameter">
                             <Tooltip
@@ -354,6 +370,7 @@ const SurfacingTool = () => {
                                                         checked as boolean,
                                                 });
                                             }}
+                                            aria-label="Toggle spindle delay"
                                         />
                                     </div>
                                 </Tooltip>
@@ -377,6 +394,7 @@ const SurfacingTool = () => {
                                             }
                                             checked={surfacing.mist ?? false}
                                             className="h-20"
+                                            aria-label="Toggle Mist coolant"
                                         />
                                     </div>
                                 </Tooltip>
@@ -396,6 +414,7 @@ const SurfacingTool = () => {
                                             }
                                             checked={surfacing.flood ?? false}
                                             className="h-20"
+                                            aria-label="Toggle Flood coolant"
                                         />
                                     </div>
                                 </Tooltip>

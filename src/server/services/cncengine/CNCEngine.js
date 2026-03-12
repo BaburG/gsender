@@ -44,7 +44,6 @@ import { GRBLHAL } from '../../controllers/Grblhal/constants';
 import { authorizeIPAddress } from '../../access-control';
 import DFUFlasher from '../../lib/Firmware/Flashing/DFUFlasher';
 import delay from '../../lib/delay';
-import SerialConnection from 'server/lib/SerialConnection';
 import Connection from '../../lib/Connection';
 import { VISUALIZER_SECONDARY } from '../../../app/src/constants';
 
@@ -172,10 +171,6 @@ class CNCEngine {
                 // IP Address Access Control
                 const ipaddr = socket.handshake.address;
                 await authorizeIPAddress(ipaddr);
-
-                // User Validation
-                //const user = socket.decoded_token || {};
-                //await validateUser(user);
             } catch (err) {
                 log.warn(err);
                 next(err);
@@ -376,8 +371,8 @@ class CNCEngine {
                             });
 
                         // Filter ports by productId to avoid non-arduino devices from appearing
-                        const validProductIDs = ['6015', '6001', '606D', '003D', '0042', '0043', '2341', '7523', 'EA60', '2303', '2145', '0AD8', '08D8', '5740', '0FA7'];
-                        const validVendorIDs = ['1D50', '0403', '2341', '0042', '1A86', '10C4', '067B', '03EB', '16D0', '0483'];
+                        const validProductIDs = ['0483', '6015', '6001', '606D', '003D', '0042', '0043', '2341', '7523', 'EA60', '2303', '2145', '0AD8', '08D8', '5740', '0FA7'];
+                        const validVendorIDs = ['16C0', '1D50', '0403', '2341', '0042', '1A86', '10C4', '067B', '03EB', '16D0', '0483'];
                         let [recognizedPorts, unrecognizedPorts] = partition(ports, (port) => {
                             if (!port.vendorId || !port.productId) {
                                 return false;
@@ -450,17 +445,19 @@ class CNCEngine {
 
                 log.debug(`socket.open("${port}", ${JSON.stringify(options)}): id=${socket.id}`);
 
-                // create new connection
-                if (!this.connection) {
+                // Remove old listeners from the existing connection before potentially replacing it
+                if (this.connection) {
+                    removeConnectionListeners();
+                }
+
+                if (!this.connection || this.connection.isClose()) {
+                    // No connection or stale closed connection — start fresh
                     this.connection = new Connection(engine, port, options, callback);
-                    removeConnectionListeners(); // remove all listeners if they exist
-                    addConnectionListeners(); // add listeners back
+                    addConnectionListeners();
                 } else {
-                    removeConnectionListeners(); // remove all listeners if they exist
-                    addConnectionListeners(); // add listeners back
-
+                    // Genuinely open connection — refresh for additional client joining
+                    addConnectionListeners();
                     this.connection.updateOptions(options);
-
                     this.connection.refresh();
                 }
 
@@ -589,20 +586,20 @@ class CNCEngine {
                 //Close the controller for flasher utility to take over the port
                 const controller = store.get('controllers["' + flashPort + '"]');
                 if (controller) {
-                    // handle HAL behaviour - send DFU command
                     if (isHal) {
-                        // Do hal flash
-                        log.debug('writing to close using DFU');
-                        controller.writeln('$DFU');
-
                         store.unset(`controllers[${JSON.stringify(flashPort)}]`);
-                        delay(1500).then(() => {
+                        const startFlash = () => {
                             try {
                                 halFlasher.flash(data);
                             } catch (err) {
                                 this.emit('flash:message', { type: 'Error', content: err });
                             }
-                        });
+                        };
+                        if (isInDFUmode) {
+                            startFlash();
+                        } else {
+                            delay(1500).then(startFlash);
+                        }
                         return;
                     }
 
@@ -618,25 +615,18 @@ class CNCEngine {
 
                     return;
                 } else if (isHal) {
-                    // This branch is if the controller is NOT connected but is HAL -  we need to connect and put into DFU with a manual serial connection
-                    // We don't need to instantiate an entire controller but we can definitely use our serialport shim
-                    if (!isInDFUmode) {
-                        // Connect and send $DFU
-                        const connect = new SerialConnection({
-                            path: flashPort
-                        });
-                        connect.open((err) => {
-                            if (err) {
-                                this.emit('flash:message', { type: 'Error', content: err });
-                            }
-                            connect.write('$DFU\n');
-                        });
+                    const startFlash = () => {
+                        try {
+                            halFlasher.flash(data);
+                        } catch (err) {
+                            this.emit('flash:message', { type: 'Error', content: err });
+                        }
+                    };
+                    if (isInDFUmode) {
+                        startFlash();
+                    } else {
+                        delay(1500).then(startFlash);
                     }
-
-                    // For both DFU and non DFU we flash
-                    delay(1250).then(() => {
-                        halFlasher.flash(data);
-                    });
 
                     return;
                 }

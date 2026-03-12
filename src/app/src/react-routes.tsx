@@ -1,10 +1,7 @@
 import { Routes, Route, Outlet } from 'react-router';
 import noop from 'lodash/noop';
-import { BiSolidCylinder } from 'react-icons/bi';
-
 import Workspace from './workspace';
 import { Config } from './features/Config';
-import Firmware from './features/Firmware';
 import KeyboardShortcuts from './features/Keyboard';
 import MovementTuning from './features/MovementTuning';
 import Squaring from './features/Squaring';
@@ -12,7 +9,7 @@ import { StatParent } from './features/Stats/StatParent';
 import Surfacing from './features/Surfacing';
 import ToolCard from './components/ToolCard';
 import { GiFlatPlatform } from 'react-icons/gi';
-import { FaGamepad, FaKeyboard, FaMicrochip, FaNetworkWired } from 'react-icons/fa';
+import { FaGamepad, FaKeyboard } from 'react-icons/fa';
 import { TbRulerMeasure } from 'react-icons/tb';
 import { MdSquareFoot } from 'react-icons/md';
 import { Alarms } from './features/Stats/Alarms';
@@ -41,7 +38,11 @@ import Console from 'app/features/Console';
 import Profile from './features/Gamepad/Profile';
 import RotarySurfacing from './features/Rotary/RotarySurfacing';
 import ConfirmationDialog from './components/ConfirmationDialog/ConfirmationDialog';
-import Network from './features/Network';
+import { BiSolidCylinder } from 'react-icons/bi';
+import SDCard from 'app/features/SDCard';
+import { FaSdCard } from 'react-icons/fa';
+import { LuDrill } from 'react-icons/lu';
+import { AccessoryInstaller } from 'app/features/AccessoryInstaller';
 
 export const ReactRoutes = () => {
     return (
@@ -67,7 +68,7 @@ export const ReactRoutes = () => {
                     <Route
                         index
                         element={
-                            <div className="p-4 fixed-content-area no-scrollbar">
+                            <div className="py-4 px-16 max-xl:px-8 fixed-content-area no-scrollbar">
                                 <p className="text-lg font-semibold mb-4 dark:text-white">
                                     Choose a tool to get started...
                                 </p>
@@ -116,17 +117,20 @@ export const ReactRoutes = () => {
                                     />
 
                                     <ToolCard
-                                        title="Network"
-                                        description="Configure WiFi and Ethernet settings for your Raspberry Pi"
-                                        icon={FaNetworkWired}
-                                        link="/tools/network"
+                                        title={'SD Card Manager'}
+                                        description={
+                                            'Manage and view files on your SD card'
+                                        }
+                                        icon={FaSdCard}
+                                        link={'/tools/sd'}
                                     />
-
                                     <ToolCard
-                                        title="Old Firmware"
-                                        description="This is depreciated and used to be used for updating firmware"
-                                        icon={FaMicrochip}
-                                        link="/tools/firmware"
+                                        title={'Accessory Installation'}
+                                        description={
+                                            'Install various CNC Accessories'
+                                        }
+                                        icon={LuDrill}
+                                        link={'/tools/accessoryInstall'}
                                     />
                                 </div>
                             </div>
@@ -211,31 +215,20 @@ export const ReactRoutes = () => {
                         element={<Profile />}
                     />
                     <Route
-                        path="network"
+                        path={'sd'}
                         element={
                             <Page
-                                title="Network Configuration"
-                                description="Manage WiFi and Ethernet settings for your Raspberry Pi"
+                                title="SD Card Manager"
                                 withGoBackButton
                                 withFixedArea
                             >
-                                <Network />
+                                <SDCard />
                             </Page>
                         }
                     />
                     <Route
-                        path="firmware"
-                        element={
-                            <Page
-                                title="Firmware (Legacy)"
-                                withGoBackButton
-                                withFixedArea
-                            >
-                                <div className="flex justify-center items-center flex-col h-[599px] xl:h-[650px]">
-                                    <Firmware />
-                                </div>
-                            </Page>
-                        }
+                        path={'accessoryInstall'}
+                        element={<AccessoryInstaller />}
                     />
                 </Route>
                 <Route path="stats" element={<StatParent />}>
@@ -254,7 +247,7 @@ export const ReactRoutes = () => {
                 path="remote"
                 element={
                     <div className="flex flex-col gap-2">
-                        <TopBar />
+                        <TopBar isRemoteWindow={true} />
                         <ConfirmationDialog />
                         <div className="flex flex-col gap-8 min-h-screen p-4">
                             <Outlet />
@@ -268,7 +261,9 @@ export const ReactRoutes = () => {
                     index
                     element={
                         <>
-                            <WorkspaceSelector />
+                            <div className="relative mb-6">
+                                <WorkspaceSelector />
+                            </div>
                             <DRO isRemote />
                             <Jogging />
                         </>
