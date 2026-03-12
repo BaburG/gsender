@@ -20,10 +20,12 @@ import {
     AXIS_Y,
     AXIS_Z,
     AXIS_A,
+    GRBL_ACTIVE_STATE_HOLD,
     GRBL_ACTIVE_STATE_IDLE,
     GRBL_ACTIVE_STATE_JOG,
     LOCATION_CATEGORY,
     METRIC_UNITS,
+    WORKFLOW_STATE_PAUSED,
     WORKFLOW_STATE_RUNNING,
 } from 'app/constants';
 import mapValues from 'lodash/mapValues';
@@ -131,6 +133,7 @@ function DRO({
     const canClick = useCallback((): boolean => {
         if (!isConnected) return false;
         if (workflowState === WORKFLOW_STATE_RUNNING) return false;
+        if (workflowState === WORKFLOW_STATE_PAUSED && activeState === GRBL_ACTIVE_STATE_HOLD) return true;
 
         const states = [GRBL_ACTIVE_STATE_IDLE, GRBL_ACTIVE_STATE_JOG];
 
@@ -158,6 +161,7 @@ function DRO({
 
         if (!isConnected) return false;
         if (workflowState === WORKFLOW_STATE_RUNNING) return false;
+        if (workflowState === WORKFLOW_STATE_PAUSED && activeState === GRBL_ACTIVE_STATE_HOLD) return true;
         if (needsHoming && !homingEnabled) return false;
 
         const states = [GRBL_ACTIVE_STATE_IDLE, GRBL_ACTIVE_STATE_JOG];
