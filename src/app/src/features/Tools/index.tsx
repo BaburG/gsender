@@ -54,7 +54,7 @@ const Tools = () => {
             return false;
         }
 
-        if (tab.label === 'Coolant' && !coolantFunctions) {
+        if (tab.label === 'Coolant' && coolantFunctions === 'Disabled') {
             return false;
         }
 

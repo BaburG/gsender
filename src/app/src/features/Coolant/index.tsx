@@ -20,6 +20,7 @@ import ensureArray from 'ensure-array';
 import includes from 'lodash/includes';
 import { useCallback } from 'react';
 import { useTypedSelector } from 'app/hooks/useTypedSelector';
+import { useWorkspaceState } from 'app/hooks/useWorkspaceState';
 
 export interface CoolantProps {
     mistActive: boolean;
@@ -34,6 +35,16 @@ export function Coolant({ mistActive, floodActive }: CoolantProps) {
             controllerState: state.controller.state ?? {},
             controllerType: state.controller.type ?? 'grbl',
         }));
+
+    const { coolantFunctions } = useWorkspaceState();
+    const showMist =
+        coolantFunctions === 'Mist' ||
+        coolantFunctions === 'Both' ||
+        coolantFunctions === true;
+    const showFlood =
+        coolantFunctions === 'Flood' ||
+        coolantFunctions === 'Both' ||
+        coolantFunctions === true;
 
     const canClick = useCallback((): boolean => {
         if (!isConnected) return false;
@@ -52,26 +63,30 @@ export function Coolant({ mistActive, floodActive }: CoolantProps) {
     return (
         <div className="flex flex-col justify-around items-center h-full">
             <div className="flex flex-row justify-around w-full gap-2">
-                <ActiveStateButton
-                    text="Mist"
-                    icon={<FaShower />}
-                    onClick={startMist}
-                    size="lg"
-                    className="w-full h-16"
-                    active={mistActive}
-                    disabled={!canClick()}
-                    tooltip={{ content: 'Turn on mist coolant' }}
-                />
-                <ActiveStateButton
-                    text="Flood"
-                    icon={<FaWater />}
-                    onClick={startFlood}
-                    size="lg"
-                    className="w-full h-16"
-                    active={floodActive}
-                    disabled={!canClick()}
-                    tooltip={{ content: 'Turn on flood coolant' }}
-                />
+                {showMist && (
+                    <ActiveStateButton
+                        text="Mist"
+                        icon={<FaShower />}
+                        onClick={startMist}
+                        size="lg"
+                        className="w-full h-16"
+                        active={mistActive}
+                        disabled={!canClick()}
+                        tooltip={{ content: 'Turn on mist coolant' }}
+                    />
+                )}
+                {showFlood && (
+                    <ActiveStateButton
+                        text="Flood"
+                        icon={<FaWater />}
+                        onClick={startFlood}
+                        size="lg"
+                        className="w-full h-16"
+                        active={floodActive}
+                        disabled={!canClick()}
+                        tooltip={{ content: 'Turn on flood coolant' }}
+                    />
+                )}
                 <ActiveStateButton
                     text="Off"
                     icon={<FaBan />}

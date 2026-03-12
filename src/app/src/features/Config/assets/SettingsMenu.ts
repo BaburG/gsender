@@ -1421,8 +1421,9 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Coolant controls',
                         key: 'workspace.coolantFunctions',
                         description:
-                            'Show the coolant tab and related functions on the main Carve page.',
-                        type: 'boolean',
+                            'Choose which coolant controls to show on the main Carve page.',
+                        type: 'select',
+                        options: ['Disabled', 'Mist', 'Flood', 'Both'],
                     },
                     { type: 'eeprom', eID: '$456' },
                     { type: 'eeprom', eID: '$457' },

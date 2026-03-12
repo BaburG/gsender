@@ -53,7 +53,7 @@ const defaultState: State = {
         units: METRIC_UNITS,
         reverseWidgets: false,
         spindleFunctions: false,
-        coolantFunctions: true,
+        coolantFunctions: 'Both',
         safeRetractHeight: 0,
         customDecimalPlaces: 0,
         jobsFinished: 0,

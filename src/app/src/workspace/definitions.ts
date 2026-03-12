@@ -25,7 +25,7 @@ export interface Workspace {
     units: UNITS_EN;
     reverseWidgets: boolean;
     spindleFunctions: boolean;
-    coolantFunctions: boolean;
+    coolantFunctions: string;
     sendUsageData: boolean;
     safeRetractHeight: number;
     customDecimalPlaces: number;
