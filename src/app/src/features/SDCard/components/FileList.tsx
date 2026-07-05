@@ -15,7 +15,7 @@ import reduxStore from 'app/store/redux';
 import { clearSDCardFiles } from 'app/store/redux/slices/controller.slice.ts';
 import cn from 'classnames';
 import { toast } from 'app/lib/toaster';
-import { ACCEPTED_EXTENSIONS } from 'app/features/SDCard/components/UploadModal.tsx';
+import { ACCEPTED_EXTENSIONS, validateSDFilename } from 'app/features/SDCard/components/UploadModal.tsx';
 import store from 'app/store';
 
 const formatFileSize = (bytes: number): string => {
@@ -30,6 +30,10 @@ const formatFileSize = (bytes: number): string => {
 
     return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
+
+function getUnusableReason(filename: string): string {
+    return validateSDFilename(filename) ?? 'File flagged as unusable by firmware';
+}
 
 export function isFileATCIRelated(filename, atciMacros) {
     if (filename === 'ATCI.macro' || filename === 'P100.macro') {
@@ -48,9 +52,11 @@ export const FileList: React.FC = () => {
         runSDFile,
         uploadFileToSDCard,
         isConnected,
+        isRunningSDFile,
         firmwareType,
         hasFTP,
         hasYM,
+        isWorkflowIdle
     } = useSDCard();
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -73,11 +79,18 @@ export const FileList: React.FC = () => {
         const file = files[0]; // Only take the first file
         const extension = '.' + file.name.split('.').pop()?.toLowerCase();
 
-        if (ACCEPTED_EXTENSIONS.includes(extension)) {
-            handleUpload(file);
-        } else {
+        if (!ACCEPTED_EXTENSIONS.includes(extension)) {
             toast.error('Please select a valid gcode file');
+            return;
         }
+
+        const validationError = validateSDFilename(file.name);
+        if (validationError) {
+            toast.error(`Invalid filename: ${validationError}`);
+            return;
+        }
+
+        handleUpload(file);
     };
 
     function handleDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -94,8 +107,8 @@ export const FileList: React.FC = () => {
 
                 await uploadFileToSDCard({
                     name: file.name,
-                    size: file.size,
-                    data: new Blob([text], { type: 'text/plain' }),
+                    content: text as string,
+                    size: (text as string).length,
                 });
                 fileInputRef.current.value = '';
             };
@@ -245,6 +258,14 @@ export const FileList: React.FC = () => {
                                                 ATC Macro
                                             </span>
                                         )}
+                                        {file.unusable && (
+                                            <span
+                                                className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded"
+                                                title={getUnusableReason(file.name)}
+                                            >
+                                                Unusable
+                                            </span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end space-x-2">
@@ -252,7 +273,7 @@ export const FileList: React.FC = () => {
                                                 onClick={() =>
                                                     runSDFile(file.name)
                                                 }
-                                                disabled={isLoading || isATCI}
+                                                disabled={isRunningSDFile || !isWorkflowIdle || isLoading || isATCI || file.unusable}
                                                 className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                                             >
                                                 <Play className="w-3.5 h-3.5" />
@@ -263,7 +284,7 @@ export const FileList: React.FC = () => {
                                                 onClick={() =>
                                                     handleDelete(file.name)
                                                 }
-                                                disabled={isLoading}
+                                                disabled={isRunningSDFile || !isWorkflowIdle || isLoading}
                                                 className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />

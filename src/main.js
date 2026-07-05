@@ -68,6 +68,7 @@ let windowManager = null;
 let hostInformation = {};
 let grblLog = log.create('grbl');
 let logPath;
+let powerBlockerNum = 0;
 const externalRendererUrl = process.env.NODE_ENV === 'development'
     ? process.env.ELECTRON_RENDERER_URL
     : '';
@@ -265,7 +266,7 @@ const main = () => {
             // resolution used to be 1024x768
             const bounds = {
                 minWidth: 1044,
-                minHeight: 796,
+                minHeight: 768,
                 ...store.get('bounds'),
             };
             const options = {
@@ -274,6 +275,12 @@ const main = () => {
                 kiosk,
             };
             const window = await windowManager.openWindow(url, options, splashScreen);
+
+            window.on("ready-to-show", () => {
+                const savedScaleFactor = Number(store.get("displayScaleFactor", 1.0));
+
+                window.webContents.setZoomFactor(savedScaleFactor);
+            });
 
             // Check argv for file path on Windows/Linux cold start
             if (process.platform !== 'darwin') {
@@ -293,14 +300,23 @@ const main = () => {
                 }
             });
 
-            // Power saver - display sleep higher precedence over app suspension
-            powerSaveBlocker.start('prevent-display-sleep');
-            powerMonitor.on('lock-screen', () => {
-                powerSaveBlocker.start('prevent-display-sleep');
-            });
-            powerMonitor.on('suspend', () => {
-                powerSaveBlocker.start('prevent-app-suspension');
-                log.info('Prevented suspension');
+            ipcMain.on('change-power-saving', (_msg, enabled) => {
+                if (!enabled) {
+                    // Power saver - display sleep higher precedence over app suspension
+                    powerBlockerNum = powerSaveBlocker.start('prevent-display-sleep');
+                    powerMonitor.on('lock-screen', () => {
+                        powerSaveBlocker.start('prevent-display-sleep');
+                    }),
+                    powerMonitor.on('suspend', () => {
+                        powerSaveBlocker.start('prevent-app-suspension');
+                        log.info('Prevented suspension');
+                    })
+                } else {
+                    if (powerSaveBlocker.isStarted(powerBlockerNum)) {
+                        powerSaveBlocker.stop(powerBlockerNum);
+                        powerMonitor.removeAllListeners();
+                    }
+                }
             });
 
             // Save window size and position
@@ -429,7 +445,7 @@ const main = () => {
 
                     prevDirectory = filePath; // set previous directory
 
-                    fs.readFile(FULL_FILE_PATH, 'utf8', (err, data) => {
+                    fs.readFile(FULL_FILE_PATH, 'latin1', (err, data) => {
                         if (err) {
                             log.error(`Error in readFile: ${err}`);
                             return;
@@ -500,6 +516,13 @@ const main = () => {
                 windowManager.childWindows.forEach((window) => {
                     window.webContents.send('recieve-data-' + widget, data);
                 });
+            });
+
+            ipcMain.on("save-display-scale", (_event, scaleFactor) => {
+                const value = Number(scaleFactor) || 1.0;
+
+                store.set("displayScaleFactor", value);
+                window.webContents.setZoomFactor(value);
             });
 
             //Handle app restart with remote settings

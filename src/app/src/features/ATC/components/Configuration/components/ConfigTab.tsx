@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import {
     Card,
     CardContent,
@@ -8,13 +9,6 @@ import {
 import { Switch } from 'app/components/shadcn/Switch';
 import { Input } from 'app/components/shadcn/Input';
 import { Label } from 'app/components/shadcn/Label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from 'app/components/shadcn/Select';
 import { Button } from 'app/components/Button';
 import { PositionInput } from './PositionInput';
 import { useConfigContext } from 'app/features/ATC/components/Configuration/hooks/useConfigStore';
@@ -22,7 +16,10 @@ import cn from 'classnames';
 import OffsetManagementWidget from 'app/features/ATC/components/Configuration/components/OffsetManagement.tsx';
 import { Spinner } from 'app/components/shadcn/Spinner';
 import {
+    AlertTriangle,
+    ArrowRight,
     BookOpen,
+    CheckCircle2,
     Crosshair,
     Fingerprint,
     Move,
@@ -33,9 +30,11 @@ import {
 export interface ConfigTabProps {
     uploading: boolean;
     uploadError?: string;
+    macroReadFailed?: boolean;
 }
 
-export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) => {
+export const ConfigTab: React.FC = ({ uploading, uploadError, macroReadFailed }: ConfigTabProps) => {
+    const navigate = useNavigate();
     const {
         config,
         updateConfig,
@@ -45,6 +44,14 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
         status,
     } = useConfigContext();
 
+    const [forkSpacingStr, setForkSpacingStr] = useState<string>(
+        () => String(config.variables._tc_slot_offset.value),
+    );
+
+    useEffect(() => {
+        setForkSpacingStr(String(config.variables._tc_slot_offset.value));
+    }, [config.variables._tc_slot_offset.value]);
+
     const nonDefaultStyling = 'bg-yellow-50 dark:bg-yellow-900/20';
     const labelClass = 'text-xs font-semibold text-gray-500 dark:text-white';
     const subLabelClass = 'text-xs font-medium text-gray-500 dark:text-gray-300';
@@ -53,34 +60,6 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
     const iconClass = 'h-4 w-4 text-muted-foreground dark:text-white';
     const rackSize = config.variables._tc_slots.value || 0;
     const rackEnabled = rackSize > 0;
-
-    const handleRackSizeChange = (value: string) => {
-        const nextRackSize = parseInt(value, 10) || 0;
-        const nextVariables = {
-            ...config.variables,
-            _tc_slots: {
-                ...config.variables._tc_slots,
-                value: nextRackSize,
-            },
-            _tc_rack_enable: {
-                ...config.variables._tc_rack_enable,
-                value: nextRackSize === 0 ? 0 : 1,
-            },
-        };
-
-        if (nextRackSize === 0) {
-            nextVariables._irt_offset_mode = {
-                ...config.variables._irt_offset_mode,
-                value: 0,
-            };
-            nextVariables._ort_offset_mode = {
-                ...config.variables._ort_offset_mode,
-                value: 0,
-            };
-        }
-
-        updateConfig({ variables: nextVariables });
-    };
 
     const getStatusColor = () => {
         switch (status.type) {
@@ -108,60 +87,20 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
                             <Crosshair className={`${iconClass} shrink-0`} />
                         </div>
                     </CardHeader>
-                    <CardContent className="p-5 py-1 min-h-[170px] flex flex-col justify-center gap-4">
-                        <div className="space-y-1">
-                            <Label className={labelClass}>Rack Size</Label>
-                            <div
-                                className={cn('w-52', {
-                                    [nonDefaultStyling]:
-                                        config.variables._tc_slots.value !==
-                                        config.variables._tc_slots.default,
-                                })}
-                            >
-                                <Select
-                                    value={String(rackSize)}
-                                    onValueChange={handleRackSizeChange}
-                                >
-                                    <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue placeholder="Select size" />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-[10001] bg-white dark:bg-slate-900 dark:text-gray-100">
-                                        <SelectItem value="0">
-                                            No tool rack
-                                        </SelectItem>
-                                        <SelectItem value="6">
-                                            Rack with 6 tools
-                                        </SelectItem>
-                                        <SelectItem value="12">
-                                            Rack with 12 tools
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        <div
-                            className={cn(
-                                'space-y-1',
-                                !rackEnabled &&
-                                    'opacity-50 pointer-events-none',
-                            )}
+                    <CardContent className="p-5 !pt-4 min-h-[170px] flex flex-col justify-center gap-4">
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-fit"
+                            onClick={() => navigate('/tools/accessoryInstall/sienci-atc/initial-setup')}
                         >
-                            <Label className={labelClass}>Rack Position</Label>
-                            <PositionInput
-                                label="Tool Rack Position"
-                                position={config.slot1Position}
-                                onPositionChange={(position) =>
-                                    updatePosition(
-                                        'toolRack.slot1Position',
-                                        position,
-                                    )
-                                }
-                                onUseCurrent={() => setWorkspacePosition('P7')}
-                                disabled={!rackEnabled}
-                                actionLabel="Set Manually"
-                                hideLabel
-                            />
-                        </div>
+                            Go to ATC Setup
+                            <ArrowRight className="h-4 w-4 ml-1" />
+                        </Button>
+                        <p className="text-sm text-gray-600 dark:text-gray-200">
+                            Tool rack configuration is managed through the ATC setup process. Re-run setup to reconfigure your rack.
+                        </p>
                     </CardContent>
                 </Card>
 
@@ -175,7 +114,7 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
                             <Fingerprint className={`${iconClass} shrink-0`} />
                         </div>
                     </CardHeader>
-                    <CardContent className="p-5 py-1 min-h-[170px] flex flex-col justify-center gap-4">
+                    <CardContent className="p-5 !pt-4 min-h-[170px] flex flex-col justify-center gap-4">
                         <Label className={labelClass}>Sensor Position</Label>
                         <PositionInput
                             label="Tool Length Sensor Position"
@@ -205,7 +144,7 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
                         <BookOpen className={`${iconClass} shrink-0`} />
                     </div>
                 </CardHeader>
-                <CardContent className="p-5 py-1 min-h-[320px] flex">
+                <CardContent className="p-5 !pt-4 min-h-[320px] flex">
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 w-full items-center">
                         <div className="space-y-4">
                             <div className="space-y-1">
@@ -479,26 +418,33 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
                                             type="number"
                                             step="any"
                                             wrapperClassName="w-auto"
-                                            value={
-                                                config.variables._tc_slot_offset
-                                                    .value
-                                            }
+                                            value={forkSpacingStr}
                                             onChange={(e) =>
-                                                updateConfig({
-                                                    variables: {
-                                                        ...config.variables,
-                                                        _tc_slot_offset: {
-                                                            ...config.variables
-                                                                ._tc_slot_offset,
-                                                            value:
-                                                                parseFloat(
-                                                                    e.target
-                                                                        .value,
-                                                                ) || 0,
-                                                        },
-                                                    },
-                                                })
+                                                setForkSpacingStr(e.target.value)
                                             }
+                                            onBlur={() => {
+                                                const parsed = parseFloat(forkSpacingStr);
+                                                if (!isNaN(parsed)) {
+                                                    updateConfig({
+                                                        variables: {
+                                                            ...config.variables,
+                                                            _tc_slot_offset: {
+                                                                ...config.variables._tc_slot_offset,
+                                                                value: parsed,
+                                                            },
+                                                        },
+                                                    });
+                                                } else {
+                                                    setForkSpacingStr(
+                                                        String(config.variables._tc_slot_offset.value),
+                                                    );
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.currentTarget.blur();
+                                                }
+                                            }}
                                             className="h-7 w-16 text-xs border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:border-blue-500 focus:ring-blue-500 shrink-0 ml-auto"
                                         />
                                     </div>
@@ -526,7 +472,14 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
                         </div>
                     )}
 
-                    {status.message && !uploading && (
+                    {!uploading && status.type === 'success' && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-green-50 border border-green-200 text-green-700 dark:bg-green-950/40 dark:border-green-800 dark:text-green-400 animate-in fade-in-0 duration-300">
+                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                            <span className="text-xs font-medium">{status.message}</span>
+                        </div>
+                    )}
+
+                    {!uploading && status.type !== 'success' && status.message && (
                         <div className={cn('text-xs', getStatusColor())}>
                             {status.message}
                         </div>
@@ -537,11 +490,20 @@ export const ConfigTab: React.FC = ({ uploading, uploadError }: ConfigTabProps) 
                             {uploadError}
                         </p>
                     )}
+
+                    {macroReadFailed && !uploading && (
+                        <div className="flex items-start gap-2 rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            <p>
+                                Unable to read board config (<code>ATCI.macro</code>). Ensure the file exists and SD card is installed — apply disabled.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Apply Button - 40% */}
                 <div className="w-2/5 flex items-center justify-end">
-                    <Button onClick={applyConfig} disabled={uploading}>
+                    <Button onClick={applyConfig} disabled={uploading || !!macroReadFailed}>
                         {uploading ? 'Applying...' : 'Apply'}
                     </Button>
                 </div>

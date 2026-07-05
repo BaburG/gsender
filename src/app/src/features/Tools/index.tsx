@@ -70,7 +70,7 @@ const Tools = () => {
             return false;
         }
 
-        if (tab.label === 'Coolant' && coolantFunctions === 'Disabled') {
+        if (tab.label === 'Coolant' && !coolantFunctions) {
             return false;
         }
 

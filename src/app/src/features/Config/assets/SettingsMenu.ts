@@ -38,10 +38,10 @@ import {
     LIGHTWEIGHT_OPTIONS,
     OUTLINE_MODES,
     SPINDLE_MODE,
+    THEMES,
     WORKSPACE_MODE,
 } from 'app/constants';
 import { LaserWizard } from 'app/features/Config/components/wizards/LaserWizard.tsx';
-import { ATCIWizard } from 'app/features/Config/components/wizards/ATCiWizard.tsx';
 import {
     GamepadLinkWizard,
     KeyboardLinkWizard,
@@ -69,6 +69,9 @@ import {
     TOASTER_UNTIL_CLOSE,
 } from 'app/lib/toaster/ToasterLib';
 import isElectron from 'is-electron';
+import { THEMES_T } from 'app/features/Visualizer/definitions';
+import { JSX } from 'react';
+import posthog from 'posthog-js';
 
 export interface SettingsMenuSection {
     label: string;
@@ -109,20 +112,25 @@ export interface gSenderSetting {
     value?: gSenderSettingsValues;
     defaultValue?: any;
     dirty?: boolean;
+    ignoreDefaultCheck?: boolean;
     eventType?: string;
     wizard?: () => JSX.Element;
     toolLink?: string;
     toolLinkLabel?: string;
     disabled?: () => boolean;
     hidden?: (getPending: (key: string, defaultValue?: any) => any) => boolean;
+    valueTransform?: (v: any) => any;
     onDisable?: () => void;
     onEnable?: () => void;
     onUpdate?: () => void;
+    onApply?: () => void;
+    onChange?: (args?: any) => void;
     min?: number;
     max?: number;
     remap?: EEPROM;
     remapped?: boolean;
     forceEEPROM?: boolean;
+    hideWhenFirmwareCurrent?: boolean;
 }
 
 export interface gSenderSubSection {
@@ -175,7 +183,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         key: 'widgets.connection.autoReconnect',
                         type: 'boolean',
                         description:
-                            'Reconnect to the last machine you used automatically when you open gSender.',
+                            'Automatically reconnect to the last machine you used when you open gSender.',
                     },
                     {
                         label: 'Firmware fallback',
@@ -213,10 +221,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             "Amount Z-axis will move up before moving in X/Y/A using go tos. (Doesn't apply to files, corner-movements, or parking, if homing is enabled this value becomes an offset from the top of the Z-axis, Default 0)",
                     },
                     {
-                        label: 'Run Check mode on file load',
+                        label: 'Check file on load',
                         key: 'widgets.visualizer.checkFile',
                         description:
-                            'Immediately runs Check Mode ($C) on the gcode file after loading.',
+                            'Runs Check Mode ($C) anytime a new g-code file is loaded.',
                         type: 'boolean',
                     },
                     {
@@ -224,7 +232,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         key: 'workspace.outlineMode',
                         type: 'select',
                         description:
-                            'Detailed follows the outline of the loaded file more closely, Square calculates a simple box outline, and Rapidless Square computes the bounding box using only cutting moves (G1/G2/G3), ignoring rapid travel (G0).',
+                            'Choose how your files will be outlined. (Detailed takes longer and follows more closely, Square traces a simple bounding box, Rapidless Square does the same but ignores rapid/G0 moves, Default Detailed)',
                         options: OUTLINE_MODES,
                     },
                     {
@@ -233,7 +241,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'number',
                         unit: 'mm/min',
                         description:
-                            'Set a specific feedrate for outline movements (e.g. 3000). If zero, uses rapid moves (G0) at maximum machine speed. Lower values provide more controlled movements.',
+                            'Set the feed rate used when outlining. (Lower values provide more controlled movements, Default 0 runs outline at maximum/G0 speed)',
                     },
                     {
                         label: 'Revert workspace',
@@ -241,8 +249,30 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'boolean',
                         defaultValue: false,
                         description:
-                            "Allow g-code 'job finishing' commands like M2 and M30 to reset your CNC's workspace back to G54 at the end of each job.",
+                            "Allow g-code 'job finishing' commands like M2 and M30 to reset your CNCs workspace back to G54 at the end of each job.",
                         options: OUTLINE_MODES,
+                    },
+                    {
+                        label: 'Power Saving',
+                        key: 'workspace.powerSaving',
+                        type: 'boolean',
+                        description: 'Allow screen to blank/sleep.',
+                        onEnable: () => {
+                            if (isElectron()) {
+                                window.ipcRenderer.send(
+                                    'change-power-saving',
+                                    true,
+                                );
+                            }
+                        },
+                        onDisable: () => {
+                            if (isElectron()) {
+                                window.ipcRenderer.send(
+                                    'change-power-saving',
+                                    false,
+                                );
+                            }
+                        },
                     },
                     {
                         label: 'Prompt on exit',
@@ -268,19 +298,34 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         },
                     },
                     {
-                        label: 'Settings Backup Frequency',
+                        label: 'Run settings backup',
                         key: 'workspace.backupFreq',
                         type: 'select',
                         description:
-                            'Choose when your gSender settings backup is generated.',
+                            'Choose how often gSender will backup your settings. Useful in case you need to revert them in the future.',
                         options: ['On Update', 'Daily', 'Weekly', 'Monthly'],
                     },
                     {
-                        label: 'Send usage data',
-                        key: 'workspace.sendUsageData',
+                        label: 'Collect usage data',
+                        key: 'workspace.collectUsageDataStatus',
                         description:
-                            'This info is sent to us as an anonymous data point, but greatly helps us improve gSender by seeing how people use it.',
+                            'This info is collected anonymously to help us improve gSender by seeing how people use it.',
                         type: 'boolean',
+                        valueTransform: (v: any) => v === 'accepted' || v === true,
+                        onApply: () => {
+                            const toggle = store.get('workspace.collectUsageDataStatus');
+                            store.replace(
+                                'workspace.collectUsageDataStatus',
+                                toggle === true || toggle === 'accepted' ? 'accepted' : 'denied',
+                            );
+
+                            if (toggle === true || toggle === 'accepted') {
+                                posthog.opt_in_capturing();
+                            } else {
+                                posthog.opt_out_capturing();
+                            }
+                        },
+                        ignoreDefaultCheck: true,
                     },
                 ],
             },
@@ -300,9 +345,9 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         description:
                             'Independant colour control for the visualizer.',
                         type: 'select',
-                        options: ['Light', 'Dark'],
-                        onUpdate: () => {
-                            pubsub.publish('theme:change');
+                        options: [THEMES.LIGHT_THEME, THEMES.DARK_THEME],
+                        onChange: (theme: THEMES_T) => {
+                            pubsub.publish('theme:change', theme);
                         },
                     },
                     {
@@ -310,13 +355,6 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         key: 'widgets.visualizer.hideProcessedLines',
                         description:
                             'Hide processed g-code lines in the visualizer.',
-                        type: 'boolean',
-                    },
-                    {
-                        label: 'Rotary diameter offset',
-                        key: 'widgets.visualizer.rotaryDiameterOffsetEnabled',
-                        description:
-                            'Apply rotary visualization offset when a cylinder diameter is found in the file.',
                         type: 'boolean',
                     },
                     {
@@ -435,7 +473,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     {
                         label: 'Pop-up notification duration',
                         key: 'workspace.toastDuration',
-                        description: `How long pop-up notifications should stay visible (in milliseconds) before auto-dismissing. Set to 0 to keep default pop-up notification durations. Set to ${TOASTER_UNTIL_CLOSE} to keep them visible until manually dismissed. Set to ${TOASTER_DISABLED} to disable pop-up notifications entirely.`,
+                        description: `How long notifications stay visible, in milliseconds, before auto-dismissing. (${TOASTER_UNTIL_CLOSE} keeps them up until manually dismissed, ${TOASTER_DISABLED} disables them, Default 0 keeps default duration)`,
                         type: 'number',
                         defaultValue: 0,
                         min: TOASTER_DISABLED,
@@ -608,6 +646,13 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             TOUCHPLATE_TYPE_3D,
                             TOUCHPLATE_TYPE_BITZERO,
                         ],
+                    },
+                    {
+                        label: 'Show touch plate switcher',
+                        key: 'widgets.probe.touchplateTypeSwitcher',
+                        description:
+                            'Show a button on Probe tab to allow switching between touch plate types.',
+                        type: 'boolean',
                     },
                     {
                         label: 'Tip diameter',
@@ -832,10 +877,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         },
                     },
                     {
-                        label: 'Final Z Retraction',
+                        label: 'Final Z retract',
                         key: 'widgets.probe.zRetractNormal',
                         description:
-                            'How far the bit moves away on the Z axis at the end of the routine. (Default 2)',
+                            'How far to move away in the Z-axis at the end of the routine. (Default 2)',
                         type: 'number',
                         min: 1,
                         unit: 'mm',
@@ -852,10 +897,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         },
                     },
                     {
-                        label: 'Final Z Retraction',
+                        label: 'Final Z retract',
                         key: 'widgets.probe.zRetractAuto',
                         description:
-                            'How far the bit moves away on the Z axis at the end of the routine. (Default 1)',
+                            'How far to move away in the Z-axis at the end of the routine. (Default 1)',
                         type: 'number',
                         min: 1,
                         unit: 'mm',
@@ -937,15 +982,15 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         eID: '$40',
                     },
                     {
-                        type: 'eeprom',
-                        eID: '$21',
-                    },
-                    {
-                        label: 'Prevent jogging past limit switches',
+                        label: 'Stop jogging past limits',
                         key: 'workspace.preventJoggingPastLimits',
                         type: 'boolean',
                         description:
-                            'If enabled, gSender will prevent jogging in a direction where a limit switch is already triggered.',
+                            'Prevent jogging in a direction where a limit switch has already been triggered.',
+                    },
+                    {
+                        type: 'eeprom',
+                        eID: '$21',
                     },
                 ],
             },
@@ -1325,14 +1370,33 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         eID: '$32',
                     },
                     {
-                        label: 'Spindle on delay',
+                        type: 'eeprom',
+                        eID: '$394',
+                    },
+                    {
+                        type: 'eeprom',
+                        eID: '$392',
+                    },
+                    {
+                        label: 'Insert dwell for spindle commands',
                         key: 'widgets.spindle.delay',
                         description:
-                            'Adds a delay to give the spindle time to spin up. ($392, Default 0)',
-                        type: 'hybrid',
-                        eID: '$392',
+                            'Adds a delay to give the spindle time to spin up.  This will insert a G4 command on every M3/M4 within the file, and is unnecessary if your firmware otherwise handles spindle-at-speed operations. (Default 0)',
+                        type: 'number',
                         unit: 's',
+                        defaultValue: 0,
+                        onUpdate: () => {
+                            const delay = Number(
+                                store.get('widgets.spindle.delay', 0),
+                            );
+                            controller.command('settings:updated', {
+                                spindleDelay: Number.isFinite(delay)
+                                    ? delay
+                                    : 0,
+                            });
+                        },
                     },
+
                     {
                         type: 'eeprom',
                         eID: '$539',
@@ -1356,15 +1420,6 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         eID: '$30',
                         forceEEPROM: true,
                         unit: 'rpm',
-                    },
-                    {
-                        label: 'Spindle speed input type',
-                        key: 'widgets.spindle.inputType',
-                        type: 'select',
-                        description:
-                            'Choose between a slider or a number input for adjusting spindle speed.',
-                        options: ['Slider', 'Number'],
-                        defaultValue: 'Slider',
                     },
                     {
                         type: 'eeprom',
@@ -1551,6 +1606,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'X-axis offset from the spindle. (Mark with a v-bit then track the laser movement to reach that mark, $741, Default 0)',
                         type: 'hybrid',
                         eID: '$741',
+                        remap: '$770',
                         unit: 'mm',
                     },
                     {
@@ -1560,7 +1616,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Y-axis offset from the spindle. (Mark with a v-bit then track the laser movement to reach that mark, $742, Default 0)',
                         type: 'hybrid',
                         eID: '$742',
-                        unit: 'rpm',
+                        remap: '$771',
+                        unit: 'mm',
                     },
                     {
                         type: 'eeprom',
@@ -1594,9 +1651,8 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Coolant controls',
                         key: 'workspace.coolantFunctions',
                         description:
-                            'Choose which coolant controls to show on the main Carve page.',
-                        type: 'select',
-                        options: ['Disabled', 'Mist', 'Flood', 'Both'],
+                            'Show the coolant tab and related functions on the main Carve page.',
+                        type: 'boolean',
                     },
                     {
                         type: 'eeprom',
@@ -1675,14 +1731,14 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Force soft limits',
                         key: 'workspace.rotaryAxis.firmwareSettings.$20',
                         description:
-                            'Enable soft limits when toggling into rotary mode (grbl only).',
+                            'Enable soft limits when toggling into rotary mode. (grbl only)',
                         type: 'boolean',
                     },
                     {
                         label: 'Force hard limits',
                         key: 'workspace.rotaryAxis.firmwareSettings.$21',
                         description:
-                            'Enable hard limits when toggling into rotary mode (grbl only).',
+                            'Enable hard limits when toggling into rotary mode. (grbl only)',
                         type: 'boolean',
                     },
                     {
@@ -1690,10 +1746,17 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         eID: '$538',
                     },
                     {
+                        label: 'Visualize non-center zeros',
+                        key: 'widgets.visualizer.rotaryDiameterOffsetEnabled',
+                        description:
+                            "For any rotary files that aren't zeroed to the centerpoint, apply an offset when a cylinder diameter is found in the file.",
+                        type: 'boolean',
+                    },
+                    {
                         label: 'Use A-axis for grbl',
                         type: 'boolean',
                         description:
-                            'Use the A-axis for grbl instead of the Y-axis (grbl only). This is useful for devices that support A-axis commands.',
+                            'Enables A-axis controls and commands to be sent for devices running modified 4-axis grbl, rather than translating A into Y. (grbl only)',
                         key: 'workspace.rotaryAxis.useAaxisForGrbl',
                         onUpdate: () => {
                             const useAaxisForGrbl = store.get(
@@ -1806,11 +1869,17 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         },
                     },
                     {
-                        label: 'Use manual toolchange location',
-                        type: 'boolean',
-                        key: 'workspace.toolChange.moveToManualPosition',
+                        label: 'First tool behaviour',
+                        type: 'select',
+                        key: 'workspace.toolChange.firstToolBehaviour',
                         description:
-                            'Move the CNC to a specified location as part of the fixed toolchange routine instead of prompting to change over the probe.',
+                            'Control how the first tool change is handled. Many CAM programs add an initial tool change command even when you already have the tool loaded.\n\n"Always run full wizard" runs the complete tool change process.\n\n"Prompt for first tool" asks whether to run the full wizard or just probe the current tool length.\n\n"Always probe length only" skips the tool change and only measures the current tool.',
+                        options: [
+                            'Always run full wizard',
+                            'Prompt for first tool',
+                            'Always probe length only',
+                        ],
+                        defaultValue: 'Always run full wizard',
                         hidden: (getPending) => {
                             const strategy = getPending(
                                 'workspace.toolChangeOption',
@@ -1820,12 +1889,26 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         },
                     },
                     {
-                        label: 'Manual toolchange location',
+                        label: 'Set tool change location',
+                        type: 'boolean',
+                        key: 'workspace.toolChange.moveToManualPosition',
+                        description:
+                            'Move the CNC to a more convenient location for manual tool changes instead of prompting to change over the sensor.',
+                        hidden: (getPending) => {
+                            const strategy = getPending(
+                                'workspace.toolChangeOption',
+                                '',
+                            );
+                            return strategy !== 'Fixed Tool Sensor';
+                        },
+                    },
+                    {
+                        label: 'Manual tool change location',
                         type: 'location',
                         key: 'workspace.toolChange.manualPosition',
                         unit: 'mm',
                         description:
-                            'The location where the CNC will move to during the manual toolchange routine.',
+                            'The location to move to when manually changing tools.',
                         hidden: (getPending) => {
                             const strategy = getPending(
                                 'workspace.toolChangeOption',
@@ -1835,7 +1918,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                                 'workspace.toolChange.moveToManualPosition',
                                 false,
                             );
-                            return strategy !== 'Fixed Tool Sensor' || !moveToLocation;
+                            return (
+                                strategy !== 'Fixed Tool Sensor' ||
+                                !moveToLocation
+                            );
                         },
                     },
                     {
@@ -1877,9 +1963,9 @@ export const SettingsMenu: SettingsMenuSection[] = [
                 settings: [
                     {
                         type: 'boolean',
-                        label: 'Warn on Home',
+                        label: 'Warn on home',
                         description:
-                            'Warn when homing that the keepout area is disabled and collisions are possible depending on homing cycle.',
+                            'Warn when homing that the keepout area is disabled and collisions are possible depending on the homing cycle.',
                         key: 'widgets.atc.warnOnHome',
                     },
                     { type: 'eeprom', eID: '$683' },
@@ -1908,10 +1994,10 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         type: 'ip',
                     },
                     {
-                        label: 'Ethernet Port',
+                        label: 'Ethernet port',
                         key: 'widgets.connection.ethernetPort',
                         description:
-                            'What port is exposed by the controller for ethernet connectivity.  This will be used when attempting to connect over ethernet. (Default 23)',
+                            'The port exposed by the controller for Ethernet connectivity. (Used when attempting to connect over Ethernet, Default 23)',
                         type: 'number',
                     },
                     { type: 'eeprom', eID: '$301' },
@@ -2064,17 +2150,17 @@ export const SettingsMenu: SettingsMenuSection[] = [
                 label: 'Announcements',
                 settings: [
                     {
-                        label: 'Status announcements',
+                        label: 'Machine status',
                         key: 'workspace.accessibility.statusAnnouncements',
                         description:
-                            'Automatically announce machine status changes (Idle, Running, Alarm, etc.) using screen readers.',
+                            'Automatically announce machine status changes using screen readers. (Idle, Running, Alarm, etc.)',
                         type: 'boolean',
                         onUpdate: () => {
                             pubsub.publish('accessibility:update');
                         },
                     },
                     {
-                        label: 'Job progress announcements',
+                        label: 'Job progress',
                         key: 'workspace.accessibility.jobProgressAnnouncements',
                         description:
                             'Periodically announce job completion percentage.',
@@ -2087,7 +2173,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Progress increment',
                         key: 'workspace.accessibility.jobProgressIncrement',
                         description:
-                            'The percentage increment at which to announce progress (e.g. every 10%).',
+                            'The percentage increment at which to announce job progress. (Default 10%)',
                         type: 'number',
                         min: 1,
                         max: 50,
@@ -2121,7 +2207,9 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         description: 'Play sound when a job finishes.',
                         type: 'boolean',
                         hidden: () =>
-                            !store.get('workspace.accessibility.audioCues.enabled'),
+                            !store.get(
+                                'workspace.accessibility.audioCues.enabled',
+                            ),
                         onUpdate: () => {
                             pubsub.publish('accessibility:update');
                         },
@@ -2133,7 +2221,9 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             'Play sound when the machine enters an alarm state.',
                         type: 'boolean',
                         hidden: () =>
-                            !store.get('workspace.accessibility.audioCues.enabled'),
+                            !store.get(
+                                'workspace.accessibility.audioCues.enabled',
+                            ),
                         onUpdate: () => {
                             pubsub.publish('accessibility:update');
                         },
@@ -2141,10 +2231,13 @@ export const SettingsMenu: SettingsMenuSection[] = [
                     {
                         label: 'Tool change sound',
                         key: 'workspace.accessibility.audioCues.toolChange',
-                        description: 'Play sound when a tool change is required.',
+                        description:
+                            'Play sound when a tool change is required.',
                         type: 'boolean',
                         hidden: () =>
-                            !store.get('workspace.accessibility.audioCues.enabled'),
+                            !store.get(
+                                'workspace.accessibility.audioCues.enabled',
+                            ),
                         onUpdate: () => {
                             pubsub.publish('accessibility:update');
                         },
@@ -2155,7 +2248,9 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         description: 'Play sound after a successful probe.',
                         type: 'boolean',
                         hidden: () =>
-                            !store.get('workspace.accessibility.audioCues.enabled'),
+                            !store.get(
+                                'workspace.accessibility.audioCues.enabled',
+                            ),
                         onUpdate: () => {
                             pubsub.publish('accessibility:update');
                         },
@@ -2195,6 +2290,50 @@ export const SettingsMenu: SettingsMenuSection[] = [
                             pubsub.publish('accessibility:update');
                         },
                     },
+                    {
+                        label: 'Spindle speed input type',
+                        key: 'widgets.spindle.inputType',
+                        type: 'select',
+                        description:
+                            'Choose between a slider or a number input for adjusting spindle speed.',
+                        options: ['Slider', 'Number'],
+                        defaultValue: 'Slider',
+                    },
+                    {
+                        label: 'App display scale',
+                        key: 'workspace.accessibility.displayScaleFactor',
+                        type: 'select',
+                        options: [
+                            '50%',
+                            '67%',
+                            '75%',
+                            '100%',
+                            '125%',
+                            '150%',
+                            '175%',
+                            '200%',
+                        ],
+                        defaultValue: '100%',
+                        description:
+                            "Override the app's display scale independently of your OS' DPI settings.",
+                        hidden: () => !isElectron(),
+                        onUpdate: () => {
+                            if (isElectron()) {
+                                const scaleFactorStr = store.get(
+                                    'workspace.accessibility.displayScaleFactor',
+                                    '100%',
+                                );
+                                // Normalize percentage to decimal (e.g., "100%" -> 1.0)
+                                const scaleFactor =
+                                    parseFloat(scaleFactorStr) / 100;
+                                // @ts-ignore
+                                window.ipcRenderer.send(
+                                    'save-display-scale',
+                                    scaleFactor,
+                                );
+                            }
+                        },
+                    },
                 ],
             },
             {
@@ -2204,7 +2343,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Keyboard control',
                         key: 'workspace.accessibility.visualizerKeyboardControl',
                         description:
-                            'Allow orbiting, panning, and zooming the 3D visualizer using arrow keys and hotkeys.',
+                            'Allow orbiting, panning, and zooming of the 3D visualizer using arrow keys and hotkeys.',
                         type: 'boolean',
                         onUpdate: () => {
                             pubsub.publish('accessibility:update');
@@ -2214,7 +2353,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Job summary',
                         key: 'workspace.accessibility.gcodeSummary.enabled',
                         description:
-                            'Provide a text summary of the loaded G-code file for screen readers.',
+                            'Provide a text summary of the loaded g-code file for screen readers.',
                         type: 'boolean',
                         onUpdate: () => {
                             pubsub.publish('accessibility:update');
@@ -2224,7 +2363,7 @@ export const SettingsMenu: SettingsMenuSection[] = [
                         label: 'Show summary visually',
                         key: 'workspace.accessibility.gcodeSummary.showVisually',
                         description:
-                            'Display the G-code summary text visually above the visualizer.',
+                            'Display the g-code summary text visually above the visualizer.',
                         type: 'boolean',
                         hidden: () =>
                             !store.get(

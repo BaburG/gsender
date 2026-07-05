@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Select from 'react-select';
-import { LuRefreshCw } from 'react-icons/lu';
+import { LuMove, LuRefreshCw } from 'react-icons/lu';
 
 import controller from 'app/lib/controller';
 import { Button } from 'app/components/Button';
@@ -35,6 +35,11 @@ import { FaClipboard, FaClipboardCheck, FaClipboardList } from 'react-icons/fa';
 import { GRBL_ACTIVE_STATE_IDLE, GRBL_ACTIVE_STATE_JOG } from 'app/constants';
 import { useWorkspaceState } from 'app/hooks/useWorkspaceState';
 import { toFixedIfNecessary } from 'app/lib/rounding';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from 'app/components/shadcn/Popover';
 
 const Steps = () => {
     const [status, setStatus] = useState<'initial' | 'started'>('initial');
@@ -193,7 +198,7 @@ const Steps = () => {
                         </div>
 
                         {!isConnected && (
-                            <div className="text-yellow-800 bg-yellow-100 text-sm p-4 xl:p-2 rounded-lg border flex flex-col gap-4 justify-center items-center text-center">
+                            <div className="text-yellow-800 bg-yellow-100 p-4 xl:p-2 rounded-lg border flex flex-col gap-4 justify-center items-center text-center">
                                 <p>
                                     Please connect to a device before starting
                                     the movement tuning wizard.
@@ -201,7 +206,7 @@ const Steps = () => {
                             </div>
                         )}
                     </div>
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-4 items-center">
                         <img
                             src={starterImage}
                             alt="Movement Tuning Example"
@@ -318,6 +323,19 @@ const Steps = () => {
                             icon={<LuRefreshCw className="w-4 h-4" />}
                             text="Restart Wizard"
                         />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    icon={<LuMove className="w-4 h-4" />}
+                                    text="Jog Controls"
+                                />
+                            </PopoverTrigger>
+
+                            <PopoverContent className="w-auto">
+                                <Jogging />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
             );
@@ -339,6 +357,19 @@ const Steps = () => {
                         icon={<LuRefreshCw className="w-4 h-4" />}
                         text="Restart Wizard"
                     />
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                icon={<LuMove className="w-4 h-4" />}
+                                text="Jog Controls"
+                            />
+                        </PopoverTrigger>
+
+                        <PopoverContent className="w-auto">
+                            <Jogging />
+                        </PopoverContent>
+                    </Popover>
                 </div>
             </div>
         );
@@ -543,9 +574,23 @@ const Steps = () => {
                     icon={<LuRefreshCw className="w-4 h-4" />}
                     text="Restart Wizard"
                 />
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant="outline"
+                            icon={<LuMove className="w-4 h-4" />}
+                            text="Jog Controls"
+                        />
+                    </PopoverTrigger>
+
+                    <PopoverContent className="w-auto">
+                        <Jogging />
+                    </PopoverContent>
+                </Popover>
             </div>
         </div>
     );
 };
 
 export default Steps;
+export { calculateNewStepsPerMM } from '../utils';

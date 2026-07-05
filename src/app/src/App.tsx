@@ -11,6 +11,7 @@ import controller from 'app/lib/controller';
 import { Toaster } from './components/shadcn/Sonner';
 import { ReactRoutes } from './react-routes';
 import { AccessibilitySettingsHandler } from './features/Helper/AccessibilitySettingsHandler';
+import { posthog } from 'posthog-js';
 
 function App() {
     useEffect(() => {
@@ -21,19 +22,27 @@ function App() {
                 token: string;
             };
 
-            if (authenticated) {
-                const host = '';
-                const options = {
-                    query: 'token=' + token,
-                };
-                controller.connect(host, options);
-                return;
-            } else {
-                console.log('no auth');
-            }
+            if (!authenticated) return;
+
+            const host = '';
+            const options = { query: 'token=' + token };
+
+            controller.connect(host, options);
         });
 
         sagaMiddleware.run(rootSaga);
+
+        const shouldSendUsageData = store.get(
+            'workspace.collectUsageDataStatus',
+            'pending',
+        );
+
+        if (shouldSendUsageData === 'accepted') {
+            console.log('Collecting usage data through PostHog');
+            posthog.opt_in_capturing();
+        } else {
+            posthog.opt_out_capturing();
+        }
     }, []);
 
     return (

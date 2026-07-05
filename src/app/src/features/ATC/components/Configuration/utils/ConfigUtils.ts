@@ -10,9 +10,9 @@ import {
 
 export interface Macro {
     name: string;
-    data: Blob;
+    content: string;
     size: number;
-    content?: string;
+    data?: never;
 }
 
 function calculateOffsetValue(data: OffsetManagement): number {
@@ -43,13 +43,10 @@ export function generateP100(config: ConfigState, useValues: boolean): Macro {
         `(msg, ATCI|rack_size:${config.variables._tc_slots.value})`,
     ].join('\n');
 
-    const data = new Blob([content]);
-
     return {
         name: 'P100.macro',
-        data,
         content,
-        size: data.size,
+        size: content.length,
     };
 }
 
@@ -57,16 +54,12 @@ export function getTemplateMacros(): Macro[] {
     const macros = store.get('widgets.atc.templates.macros', []);
     const blobs: Macro[] = [];
     macros.forEach((macro: Macro) => {
-        let data: Macro = {
-            name: '',
-            data: new Blob([]),
-            size: 0,
-        };
-
-        data.name = macro.name;
-        data.data = new Blob([macro.content]);
-        data.size = data.data.size;
-        blobs.push(data);
+        const content = macro.content ?? '';
+        blobs.push({
+            name: macro.name,
+            content,
+            size: content.length,
+        });
     });
     return blobs;
 }
@@ -77,7 +70,7 @@ export function generateAllMacros(
 ) {
     const macros: Macro[] = [];
 
-    const atciContent = generateATCIJSON(config);
+    const atciContent = generateATCIJSON(config, useValuesForP100);
 
     macros.push(generateP100(config, useValuesForP100));
     macros.push(...getTemplateMacros());
@@ -87,11 +80,12 @@ export function generateAllMacros(
 }
 
 export function writeableATCIConfig(json: ATCIJSON): Macro {
-    const data = new Blob([JSON.stringify(json) + '\n']);
+    const content = JSON.stringify(json) + '\n';
+
     return {
         name: 'ATCI.macro',
-        data,
-        size: data.size,
+        content,
+        size: content.length,
     };
 }
 
@@ -117,13 +111,22 @@ export function populateATCIVariables(variables, config: ConfigState) {
     return populatedVariables;
 }
 
-export function generateATCIJSON(config: ConfigState): ATCIJSON {
+export function generateATCIJSON(config: ConfigState, useValues = true): ATCIJSON {
     const templateConfig: ATCIMacroConfig = store.get(
         'widgets.atc.templates',
         {},
     );
 
     let variables = { ...config.variables };
+
+    if (!useValues) {
+        const excluded = ['_tc_slots', '_tc_rack_enable'];
+        variables = Object.fromEntries(
+            Object.entries(variables).map(([k, v]) =>
+                excluded.includes(k) ? [k, v] : [k, { ...v, value: v.default }]
+            )
+        ) as typeof variables;
+    }
 
     const files = templateConfig.macros.map((macro) => macro.name);
 

@@ -63,6 +63,10 @@ interface iSettingsContext {
     isSettingDefault: (v: gSenderSetting) => boolean;
     getEEPROMDefaultValue: (v: EEPROM) => string | number;
     isFirmwareCurrent: boolean;
+    profileChangedSinceDefaults: boolean;
+    setProfileChangedSinceDefaults?: React.Dispatch<
+        React.SetStateAction<boolean>
+    >;
 }
 
 interface SettingsProviderProps {
@@ -106,6 +110,7 @@ const defaultState: iSettingsContext = {
     filterNonDefault: false,
     eepromIsDefault: (_v) => false,
     isFirmwareCurrent: false,
+    profileChangedSinceDefaults: false,
 };
 
 export const SettingsContext =
@@ -229,6 +234,8 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     const [settingsValues, setSettingsValues] = useState<gSenderSetting[]>([]);
     const [filterNonDefault, setFilterNonDefault] = useState(false);
     const [isFirmwareCurrent, setIsFirmwareCurrent] = useState(false);
+    const [profileChangedSinceDefaults, setProfileChangedSinceDefaults] =
+        useState(false);
 
     const firmwareVersion = useTypedSelector(
         (state: RootState) => state.controller.settings.version?.semver,
@@ -284,7 +291,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         [pendingValueMap],
     );
 
-    useEffect(() => {
+    function repopulateMachineProfile() {
         const storeMachineProfile: MachineProfile = store.get(
             'workspace.machineProfile',
             {},
@@ -298,9 +305,14 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
             console.error(
                 'No machine profile with this ID found, using previous value.',
             );
-            return setMachineProfile(storeMachineProfile);
+            setMachineProfile(storeMachineProfile);
+            return;
         }
         setMachineProfile(latest);
+    }
+
+    useEffect(() => {
+        repopulateMachineProfile();
     }, []);
 
     function repopulateSettings() {
@@ -399,6 +411,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         repopulateSettings();
         pubsub.subscribe('repopulate', () => {
             repopulateSettings();
+            repopulateMachineProfile();
         });
         pubsub.subscribe('eeprom:repopulate', () => {
             repopulateEEPROM();
@@ -474,7 +487,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
         return JSON.stringify(searchChecker)
             .toLowerCase()
-            .includes(searchTerm.toLowerCase());
+            .includes(searchTerm.trim().toLowerCase());
     }
 
     /**
@@ -489,7 +502,10 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
             // ***first, check conditions that are always applicable
 
             // Hide hidden when filtering
-            if ('hidden' in v && (!searchTerm || searchTerm.length === 0)) {
+            if (
+                'hidden' in v &&
+                (!searchTerm || searchTerm.trim().length === 0)
+            ) {
                 if (v.hidden(getPendingOrStore)) {
                     // only return if it's supposed to be hidden, otherwise we have more to check
                     return false;
@@ -522,7 +538,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
             const modified = checkIfModified(v);
             const searched = checkSearchTerm(v);
 
-            if (searchTerm.length === 0 || !searchTerm) {
+            if (searchTerm.trim().length === 0 || !searchTerm) {
                 // if no search, check modified
                 if (filterNonDefault) {
                     return modified;
@@ -594,10 +610,22 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     }
 
     function isSettingDefault(v: gSenderSetting) {
+        if (v.ignoreDefaultCheck) {
+            return true;
+        }
+
         if (v.type === 'hybrid' && connected && controllerType === GRBLHAL) {
             return eepromIsDefault(v);
         }
         if ('key' in v) {
+            if (v.key === 'workspace.collectUsageDataStatus') {
+                console.log({
+                    key: v.key,
+                    value: v.value,
+                    defaultValue: v.defaultValue,
+                });
+            }
+
             return isEqual(v.value, v.defaultValue);
         }
         return true; // Default to true, so non-key settings aren't always highlighted.
@@ -646,6 +674,8 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         isSettingDefault,
         getEEPROMDefaultValue,
         isFirmwareCurrent,
+        profileChangedSinceDefaults,
+        setProfileChangedSinceDefaults,
     };
 
     return (

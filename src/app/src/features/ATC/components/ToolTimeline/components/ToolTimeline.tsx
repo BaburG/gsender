@@ -55,6 +55,7 @@ export function ToolTimeline({
         reportedRackSize > 0
             ? reportedRackSize
             : Object.values(toolTableData || {}).length;
+    const hasToolTable = Object.values(toolTableData || {}).length > 0;
     useEffect(() => {
         setToolTable(mapToolNicknamesAndStatus(toolTableData, rackSize));
     }, [toolTableData, rackSize]);
@@ -69,12 +70,12 @@ export function ToolTimeline({
     }, [toolTableData, rackSize]);
 
     useEffect(() => {
-        pubsub.subscribe('file:load', () => {
+        const token = pubsub.subscribe('file:load', () => {
             setMappings(new Map());
             updateToolchangeContext(new Map());
         });
         return () => {
-            pubsub.unsubscribe('file:loaded');
+            pubsub.unsubscribe(token);
         };
     }, []);
 
@@ -204,6 +205,7 @@ export function ToolTimeline({
                                             remapValue={remapValue}
                                             isManual={isManual}
                                             probeState={probeState}
+                                            showProbeStatus={hasToolTable}
                                             canRemap={allowManualBadge}
                                             remapDisabled={remapDisabled}
                                         />

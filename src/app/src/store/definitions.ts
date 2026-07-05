@@ -24,9 +24,7 @@ import {
     Visualizer,
     ATC,
 } from 'app/features/Visualizer/definitions';
-import {
-    Modal,
-} from 'app/lib/definitions/gcode_virtualization';
+import { Modal } from 'app/lib/definitions/gcode_virtualization';
 import { Feeder, Sender } from 'app/lib/definitions/sender_feeder';
 import { CommandKeys } from 'app/lib/definitions/shortcuts';
 import { Notification, Workspace } from 'app/workspace/definitions';
@@ -83,6 +81,7 @@ export interface gSenderInfo {
 export interface SDCardFile {
     name: string;
     size: number;
+    unusable?: boolean;
 }
 
 export interface ControllerState {
@@ -186,7 +185,9 @@ export interface PreferencesState {
             showVisually: boolean;
         };
         showKeyboardMap: boolean;
+        displayScaleFactor?: string;
     };
+    preventJoggingPastLimits: boolean;
 }
 
 export interface VisualizerState {

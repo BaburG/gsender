@@ -23,6 +23,7 @@
 import get from 'lodash/get';
 import includes from 'lodash/includes';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePostHog } from '@posthog/react';
 // import Space from 'app/components/Space';
 import controller from 'app/lib/controller';
 import {
@@ -64,6 +65,7 @@ import { WidgetConfigProvider } from '../WidgetConfig/WidgetContextProvider';
 import { Workspace } from 'app/workspace/definitions';
 
 const ProbeWidget = () => {
+    const posthog = usePostHog();
     const {
         probePinStatus,
         distance,
@@ -149,6 +151,9 @@ const ProbeWidget = () => {
     const [useSafeProbeOption, setUseSafeProbeOption] =
         useState<boolean>(false);
     const [selectedProbeCommand, setSelectedProbeCommand] = useState<number>(0);
+    const [touchplateTypeSwitcher, setTouchplateTypeSwitcher] = useState<boolean>(
+        config.get('touchplateTypeSwitcher')
+    );
     const [connectivityTest, setConnectivityTest] = useState<boolean>(
         config.get('connectivityTest'),
     );
@@ -252,6 +257,9 @@ const ProbeWidget = () => {
         },
         changeProbeCommand: (value: string): void => {
             setProbeCommand(value);
+        },
+        changeTouchPlateType: (value: TOUCHPLATE_TYPES_T): void => {
+            store.set('workspace.probeProfile.touchplateType', value);
         },
         toggleUseTLO: (): void => {
             setUseTLO(!useTLO);
@@ -376,6 +384,12 @@ const ProbeWidget = () => {
         },
         runProbeCommands: (commands: string[]): void => {
             controller.command('gcode:safe', commands, 'G21');
+            posthog?.capture('probe_run', {
+                probe_command_id: availableProbeCommands[selectedProbeCommand]?.id,
+                touchplate_type: touchplateType,
+                units,
+                firmware: type,
+            });
         },
         returnProbeConnectivity: (): boolean => {
             return probePinStatus;
@@ -567,6 +581,7 @@ const ProbeWidget = () => {
                 store.get('workspace.probeProfile.touchplateType'),
             );
             setTouchplate(store.get('workspace.probeProfile', {}));
+            setTouchplateTypeSwitcher(config.get('touchplateTypeSwitcher'));
             setProbeCommand(config.get('probeCommand', 'G38.2'));
             setUseTLO(config.get('useTLO'));
             setProbeDepth(config.get('probeDepth') || {});
@@ -599,6 +614,7 @@ const ProbeWidget = () => {
         availableProbeCommands: availableProbeCommands,
         selectedProbeCommand: selectedProbeCommand,
         touchplate: touchplate,
+        touchplateTypeSwitcher: touchplateTypeSwitcher,
         toolDiameter: toolDiameter,
         availableTools: availableTools,
         units: units,

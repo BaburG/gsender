@@ -330,16 +330,37 @@ class GrblHalRunner extends events.EventEmitter {
             // Ignore prb output for tool 0 (empty) since nothing to update
             // Ignore PRB if no success on probe
             const currentTool = this.state.status.currentTool;
+            const isProbeSuccess = name === 'PRB' && value.result === 1;
+            const isCurrentToolSet = currentTool > 0;
+            const toolTable = _.get(this.settings, 'toolTable', {});
+            const isToolTablePopulated = !_.isEmpty(toolTable);
+            const hasCurrentToolEntry = _.has(toolTable, currentTool);
+            const shouldUpdateToolOffsets = isProbeSuccess &&
+                isCurrentToolSet &&
+                isToolTablePopulated &&
+                hasCurrentToolEntry;
 
-            if (name === 'PRB' && value.result === 1 && currentTool > 0) {
+            if (isProbeSuccess && isCurrentToolSet && !shouldUpdateToolOffsets) {
+                log.warn(
+                    `[PRB] Skipping tool offset update for current tool T${currentTool}. ` +
+                        `isToolTablePopulated=${isToolTablePopulated}, ` +
+                        `hasCurrentToolEntry=${hasCurrentToolEntry}`
+                );
+            }
+
+            if (shouldUpdateToolOffsets) {
+                const currentToolData = toolTable[currentTool] || {};
+                const currentToolOffsets = _.isPlainObject(currentToolData.toolOffsets)
+                    ? currentToolData.toolOffsets
+                    : {};
                 const nextSettings = {
                     ...this.settings,
                     toolTable: {
                         ...this.settings.toolTable,
                         [currentTool]: {
-                            ...this.settings.toolTable[currentTool],
+                            ...currentToolData,
                             toolOffsets: {
-                                ...this.settings.toolTable[currentTool].toolOffsets,
+                                ...currentToolOffsets,
                                 x: Number(value.x),
                                 y: Number(value.y),
                                 z: Number(value.z)
@@ -416,9 +437,9 @@ class GrblHalRunner extends events.EventEmitter {
         }
         if (type === GrblHalLineParserResultVersion) {
             const { version } = payload;
-
-            const parts = version.split('.');
-            const last = parts[parts.length - 1].replace(':', '');
+            const versionString = version.split(':');
+            const parts = versionString[0].split('.');
+            const last = parts[parts.length - 1];
             const semver = Number(last);
 
             const nextSettings = { // enforce change
@@ -548,6 +569,11 @@ class GrblHalRunner extends events.EventEmitter {
     getCurrentFeedrate(state = this.state) {
         const value = _.get(state, 'parserstate.feedrate');
         return `F${value}`;
+    }
+
+    getCurrentSpindleRate(state = this.state) {
+        const value = _.get(state, 'parserstate.spindle');
+        return `${value}`;
     }
 
     isAlarm() {

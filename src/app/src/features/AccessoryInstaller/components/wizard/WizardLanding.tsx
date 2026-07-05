@@ -1,22 +1,26 @@
 import { ArrowLeft, ArrowRight, HelpCircle } from 'lucide-react';
 import { SubWizard, ValidationResult } from '../../types/wizard';
 import { ValidationBanner } from 'app/features/AccessoryInstaller/components/wizard/ValidationBanner.tsx';
-import PlaceholderImage from '../../Wizards/atc/assets/placeholder_1.png';
+import DefaultImage from '../../Wizards/atc/assets/placeholder_1.png';
 
 interface WizardLandingProps {
     title: string;
+    image?: string;
     subWizards: SubWizard[];
     onSelectSubWizard: (subWizard: SubWizard) => void;
     onBack?: () => void;
     validations?: (() => ValidationResult)[];
+    helpUrl?: string;
 }
 
 export function WizardLanding({
     title,
+    image,
     subWizards,
     onSelectSubWizard,
     onBack,
     validations,
+    helpUrl,
 }: WizardLandingProps) {
     const activeSubWizard = subWizards.find(
         (sw) => sw.id === subWizards[0]?.id,
@@ -123,9 +127,9 @@ export function WizardLanding({
             <div className="w-2/5 portrait:w-full portrait:h-2/5 bg-gray-200 dark:bg-dark p-12 flex flex-col justify-between overflow-y-auto">
                 <div className="flex items-center justify-center flex-1">
                     <img
-                        alt="Placeholder starter image"
-                        src={PlaceholderImage}
-                        className="w-[500px]"
+                        alt="Wizard image"
+                        src={image ?? DefaultImage}
+                        className="rounded-2xl"
                     />
                 </div>
 
@@ -141,7 +145,12 @@ export function WizardLanding({
                             </h3>
                             <p className="text-gray-600 dark:text-gray-400">
                                 Follow along in our{' '}
-                                <a href="#" className="text-blue-500 font-bold">
+                                <a
+                                    href={helpUrl ?? 'https://resources.sienci.com/'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-500 font-bold"
+                                >
                                     online resources
                                 </a>
                             </p>

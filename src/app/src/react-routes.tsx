@@ -211,10 +211,6 @@ export const ReactRoutes = () => {
                         }
                     />
                     <Route
-                        path="gamepad/:gamepadProfileId"
-                        element={<Profile />}
-                    />
-                    <Route
                         path={'sd'}
                         element={
                             <Page
@@ -230,6 +226,14 @@ export const ReactRoutes = () => {
                         path={'accessoryInstall'}
                         element={<AccessoryInstaller />}
                     />
+                    <Route
+                        path={'accessoryInstall/:wizardId'}
+                        element={<AccessoryInstaller />}
+                    />
+                    <Route
+                        path={'accessoryInstall/:wizardId/:subWizardId'}
+                        element={<AccessoryInstaller />}
+                    />
                 </Route>
                 <Route path="stats" element={<StatParent />}>
                     <Route index element={<Stats />} />
@@ -241,13 +245,13 @@ export const ReactRoutes = () => {
             </Route>
             <Route
                 path="console"
-                element={<Console isActive={true} isChildWindow={true} />}
+                element={<Console isActive isChildWindow />}
             ></Route>
             <Route
                 path="remote"
                 element={
                     <div className="flex flex-col gap-2">
-                        <TopBar isRemoteWindow={true} />
+                        <TopBar isRemoteWindow />
                         <ConfirmationDialog />
                         <div className="flex flex-col gap-8 min-h-screen p-4">
                             <Outlet />
@@ -274,10 +278,7 @@ export const ReactRoutes = () => {
                     element={
                         <div className="flex flex-col justify-center gap-8 p-4">
                             <div>
-                                <MachineInfoDisplay
-                                    pinned={true}
-                                    setPinned={noop}
-                                />
+                                <MachineInfoDisplay pinned setPinned={noop} />
                             </div>
 
                             <div>
@@ -294,7 +295,7 @@ export const ReactRoutes = () => {
                                 <Probe />
                             </RemoteWidget>
                             <RemoteWidget label="Macros">
-                                <Macros />
+                                <Macros isRemote />
                             </RemoteWidget>
                             <RemoteWidget label="Spindle">
                                 <Spindle />
@@ -311,9 +312,17 @@ export const ReactRoutes = () => {
                 <Route
                     path="workflow"
                     element={
-                        <div className="flex flex-col gap-48 mt-6">
+                        <div className="flex flex-col gap-48 mt-12 relative">
                             <FileControl />
                             <JobControl />
+                        </div>
+                    }
+                />
+                <Route
+                    path="config"
+                    element={
+                        <div className="flex max-h-4/5 overflow-y-clip items-center justify-center no-scrollbar">
+                            <Config />
                         </div>
                     }
                 />

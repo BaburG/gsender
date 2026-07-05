@@ -21,14 +21,20 @@ export type Notification = {
 
 export type BackupFrequencies = 'On Update' | 'Daily' | 'Weekly' | 'Monthly';
 
+export type FirstToolBehavior =
+    | 'Always run full wizard'
+    | 'Prompt for first tool'
+    | 'Always probe length only';
+
 // Interfaces
 
 export interface Workspace {
     units: UNITS_EN;
     reverseWidgets: boolean;
     spindleFunctions: boolean;
-    coolantFunctions: string;
-    sendUsageData: boolean;
+    coolantFunctions: boolean;
+    atcEnabled: boolean;
+    collectUsageDataStatus: 'accepted' | 'denied' | 'pending';
     safeRetractHeight: number;
     customDecimalPlaces: number;
     jobsFinished: number;
@@ -42,6 +48,7 @@ export interface Workspace {
     promptExit: boolean;
     backupFreq: BackupFrequencies;
     lastBackupTime: number;
+    powerSaving: boolean;
     park: object;
     jobTimes: number[];
     toolChange: {
@@ -49,6 +56,7 @@ export interface Workspace {
         skipDialog: boolean;
         moveToManualPosition: boolean;
         manualPosition: BasicPosition;
+        firstToolBehaviour: FirstToolBehavior;
     };
     toolChangeOption:
         | 'Ignore'
@@ -96,4 +104,27 @@ export interface Workspace {
     notifications: Notification[];
     toastDuration: number;
     enableDarkMode: boolean;
+    accessibility: {
+        statusAnnouncements: boolean;
+        jobProgressAnnouncements: boolean;
+        jobProgressIncrement: number;
+        focusRings: boolean;
+        focusTrapping: boolean;
+        visualizerKeyboardControl: boolean;
+        audioCues: {
+            enabled: boolean;
+            jobComplete: boolean;
+            alarmTriggered: boolean;
+            toolChange: boolean;
+            probeSuccess: boolean;
+        };
+        reducedMotion: boolean;
+        gcodeSummary: {
+            enabled: boolean;
+            showVisually: boolean;
+        };
+        showKeyboardMap: boolean;
+        displayScaleFactor?: string;
+    };
+    preventJoggingPastLimits: boolean;
 }

@@ -25,7 +25,6 @@ import { Slider } from 'app/components/shadcn/Slider';
 import { Input } from 'app/components/shadcn/Input';
 import { useTypedSelector } from 'app/hooks/useTypedSelector';
 import { FaBan, FaRedoAlt, FaUndoAlt } from 'react-icons/fa';
-import { MdOutlineInput, MdOutlineTune } from 'react-icons/md';
 import { ActiveStateButton } from 'app/components/ActiveStateButton';
 import Tooltip from 'app/components/Tooltip';
 import { useState, useEffect } from 'react';
@@ -92,15 +91,9 @@ const SpindleControls = ({ actions, state, canClick, isConnected }: Props) => {
         }
     };
 
-    const toggleInputType = () => {
-        const nextType = inputType === 'Slider' ? 'Number' : 'Slider';
-        store.set('widgets.spindle.inputType', nextType);
-        setInputType(nextType);
-    };
-
     return (
         <>
-            <div className="flex flex-row gap-2 justify-center my-2">
+            <div className="flex flex-row gap-2 justify-center">
                 <ActiveStateButton
                     onClick={actions.sendM3}
                     disabled={!canClick}
@@ -136,22 +129,8 @@ const SpindleControls = ({ actions, state, canClick, isConnected }: Props) => {
                     aria-label="Stop spindle (M5)"
                 />
             </div>
-            <div className="grid grid-cols-[1fr_3fr_1fr] gap-2 justify-center my-2 items-center dark:text-white">
-                <div className="flex flex-row items-center justify-end gap-1">
-                    <span className="text-right">Speed</span>
-                    <button
-                        onClick={toggleInputType}
-                        className="text-gray-400 hover:text-blue-500 transition-colors p-0.5 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        aria-label={`Switch to ${inputType === 'Slider' ? 'number' : 'slider'} entry`}
-                        title={`Switch to ${inputType === 'Slider' ? 'number' : 'slider'} entry`}
-                    >
-                        {inputType === 'Slider' ? (
-                            <MdOutlineInput />
-                        ) : (
-                            <MdOutlineTune />
-                        )}
-                    </button>
-                </div>
+            <div className="grid grid-cols-[1fr_3fr_1fr] gap-2 justify-center items-center dark:text-white">
+                <span className="text-right">Speed</span>
                 {inputType === 'Slider' ? (
                     <Tooltip content="Adjust spindle speed" side="bottom">
                         <Slider
@@ -159,7 +138,7 @@ const SpindleControls = ({ actions, state, canClick, isConnected }: Props) => {
                             min={state.spindleMin}
                             max={state.spindleMax}
                             step={10}
-                            className="w-full"
+                            className="h-8 w-full"
                             onValueChange={(value: number[]) =>
                                 actions.handleSpindleSpeedChange(value[0])
                             }

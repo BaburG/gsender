@@ -1,11 +1,16 @@
 import { Wizard } from 'app/features/AccessoryInstaller/types';
 import { useValidations } from 'app/features/AccessoryInstaller/hooks/UseValidations.tsx';
 import { useMemo } from 'react';
-import PlaceholderImageSd from './assets/placeholder_sd.png';
-import PlaceholderImageTwo from './assets/placeholder_2.png';
-import PlaceholderImageThree from './assets/placeholder_3.png';
-import PlaceholderImageFour from './assets/placeholder_4.png';
-import PlaceholderImageFive from './assets/placeholder_TLS.png';
+import ATCiLogo from 'app/features/AccessoryInstaller/Wizards/atc/assets/ATC_1.webp';
+import SDImg from './assets/Step_02_Macro_Configuration_Insert_SD_Card.webp';
+import ControllerConfigImg from './assets/Step_03_Controller_Configuration.webp';
+import HomingImg from './assets/Step_04_Homing.webp';
+import RackA from './assets/Step_5A_Rack_Position_06.webp';
+// import RackB from './assets/Step_5B_Rack_Position_01.webp';
+import TLSPosImg from './assets/Step_07_ToolLength_Sensor_Position.webp';
+import Spindle1Video from './assets/spindle_1.mp4';
+import Spindle2Video from './assets/spindle_2.mp4';
+import CompletionImg from './assets/Step_10_Setup_Complete.webp';
 import { MacroConfiguration } from 'app/features/AccessoryInstaller/Wizards/atc/components/MacroConfiguration.tsx';
 import { ControllerConfiguration } from 'app/features/AccessoryInstaller/Wizards/atc/components/ControllerConfiguration.tsx';
 import { RackPosition } from 'app/features/AccessoryInstaller/Wizards/atc/components/RackPosition.tsx';
@@ -36,44 +41,52 @@ export function useSienciATCWizard(): Wizard {
         () => ({
             id: 'sienci-atc',
             title: 'Sienci ATC',
+            image: ATCiLogo,
             validations: [...validations],
+            helpUrl: 'https://resources.sienci.com/view/atc-software/',
             subWizards: [
                 {
                     id: 'initial-setup',
-                    title: 'Initial Setup',
+                    title: 'Setup Wizard',
                     description: 'Configure your ATC for first time use',
                     estimatedTime: '30 minutes - 2 hours',
                     configVersion: storeVersion,
                     completionPage: ATCCompletion,
+                    completionImage: CompletionImg,
                     steps: [
                         {
                             id: 'macro-configuration',
-                            title: 'Macro Configuration',
+                            title: 'Tool Changing Macros',
                             component: MacroConfiguration,
                             secondaryContent: [
                                 {
                                     type: 'image',
-                                    content: PlaceholderImageSd,
+                                    content: SDImg,
                                     title: 'SD Card Installation',
                                 },
+                                {
+                                    type: 'link',
+                                    title: 'Need help?',
+                                    content: "Follow along in our",
+                                    url: 'https://resources.sienci.com/view/atc-software/'
+                                }
                             ],
                         },
                         {
                             id: 'controller-configuration',
-                            title: 'Controller Configuration',
+                            title: 'Controller Setup',
                             component: ControllerConfiguration,
                             secondaryContent: [
                                 {
                                     type: 'image',
-                                    content: PlaceholderImageTwo,
+                                    content: ControllerConfigImg,
                                 },
                                 {
                                     type: 'link',
-                                    title: 'Learn More',
-                                    content:
-                                        'View our online resources for a full list of settings changes.',
-                                    url: 'https://example.com/docs',
-                                },
+                                    title: 'Need help?',
+                                    content: "Follow along in our",
+                                    url: 'https://resources.sienci.com/view/atc-software/'
+                                }
                             ],
                         },
                         {
@@ -83,15 +96,28 @@ export function useSienciATCWizard(): Wizard {
                             secondaryContent: [
                                 {
                                     type: 'image',
-                                    content: PlaceholderImageThree,
+                                    content: HomingImg,
                                 },
+                                {
+                                    type: 'link',
+                                    title: 'Need help?',
+                                    content: "Follow along in our",
+                                    url: 'https://resources.sienci.com/view/atc-software/'
+                                }
                             ],
                         },
                         {
                             id: 'rack-position',
                             title: 'Rack Position',
                             component: RackPosition,
+                            autoComplete: () =>
+                                store.get('widgets.atc.templates.variables._tc_rack_enable.value', 0) === 0 &&
+                                store.get('widgets.atc.templates.variables._tc_slots.value', 0) === 0,
                             secondaryContent: [
+                                {
+                                    type: 'image',
+                                    content: RackA,
+                                },
                                 {
                                     type: 'component',
                                     content: Jogging,
@@ -99,6 +125,12 @@ export function useSienciATCWizard(): Wizard {
                                         hideRotary: true,
                                     },
                                 },
+                                {
+                                    type: 'link',
+                                    title: 'Need help?',
+                                    content: "Follow along in our",
+                                    url: 'https://resources.sienci.com/view/atc-software/'
+                                }
                             ],
                         },
                         {
@@ -108,7 +140,7 @@ export function useSienciATCWizard(): Wizard {
                             secondaryContent: [
                                 {
                                     type: 'image',
-                                    content: PlaceholderImageFour,
+                                    content: TLSPosImg,
                                 },
                                 {
                                     type: 'component',
@@ -117,37 +149,60 @@ export function useSienciATCWizard(): Wizard {
                                         hideRotary: true,
                                     },
                                 },
+                                {
+                                    type: 'link',
+                                    title: 'Need help?',
+                                    content: "Follow along in our",
+                                    url: 'https://resources.sienci.com/view/atc-software/'
+                                }
                             ],
                         },
                         {
                             id: 'spindle-config',
-                            title: 'Spindle Configuration',
+                            title: 'Spindle Setup - Part 1',
                             component: SpindleSetRestart,
                             secondaryContent: [
                                 {
-                                    type: 'image',
-                                    content: PlaceholderImageFive,
+                                    type: 'video',
+                                    content: Spindle1Video,
                                 },
+                                {
+                                    type: 'link',
+                                    title: 'Need help?',
+                                    content: "Follow along in our",
+                                    url: 'https://resources.sienci.com/view/atc-software/'
+                                }
                             ],
                         },
                         {
                             id: 'modbus-config',
-                            title: 'Modbus Configuration',
+                            title: 'Spindle Setup - Part 2',
                             component: Modbus,
-                            secondaryContent: [],
+                            secondaryContent: [
+                                {
+                                    type: 'video',
+                                    content: Spindle2Video,
+                                },
+                                {
+                                    type: 'link',
+                                    title: 'Need help?',
+                                    content: "Follow along in our",
+                                    url: 'https://resources.sienci.com/view/atc-software/'
+                                }
+                            ],
                         },
                     ],
                 },
                 {
                     id: 'configure-atc',
-                    title: 'Configure ATC',
+                    title: 'ATC Options',
                     description: 'Adjust ATC settings',
                     estimatedTime: '10 minutes',
                     configVersion: storeVersion,
                     steps: [
                         {
                             id: 'atc-settings',
-                            title: 'ATC Config',
+                            title: 'ATC Options',
                             component: ATCConfigStep,
                             secondaryContent: [
                                 {

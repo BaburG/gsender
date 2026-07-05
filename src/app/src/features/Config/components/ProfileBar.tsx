@@ -17,6 +17,7 @@ import { FlashDialog } from 'app/features/Config/components/FlashDialog.tsx';
 import { RestoreDefaultDialog } from 'app/features/Config/components/RestoreDefaultDialog.tsx';
 import controller from 'app/lib/controller.ts';
 import { EEPROM, EEPROMSettings } from 'app/definitions/firmware';
+import cx from 'classnames';
 
 export function ProfileBar() {
     const {
@@ -35,6 +36,8 @@ export function ProfileBar() {
     const connected = useSelector(
         (state: RootState) => state.connection.isConnected,
     );
+
+    const isSienciMachine = machineProfile.company === 'Sienci Labs';
 
     function updateSettingsHandler() {
         updateAllSettings(settingsValues, EEPROM);
@@ -124,8 +127,8 @@ export function ProfileBar() {
                     <MachineProfileSelector />
                 </div>
 
-                <div className="grid h-full max-w-lg grid-cols-4 font-medium divide-x max-sm:divide-x-0 max-sm:hidden">
-                    <RestoreDefaultDialog />
+                <div className="grid grid-cols-4 h-full max-w-lg font-medium divide-x max-sm:divide-x-0 max-sm:hidden">
+                    <RestoreDefaultDialog isSienciMachine={isSienciMachine} />
                     <ActionButton
                         icon={<PiLightning />}
                         label="Flash"
